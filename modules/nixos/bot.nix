@@ -167,10 +167,15 @@ in
         RestrictSUIDSGID = true;
         RemoveIPC = true;
 
-        # Allow reading secret files
+        # Allow reading secret files and DNS resolution
         BindReadOnlyPaths = [
           cfg.xmppPasswordFile
           cfg.claudeApiKeyFile
+          # DNS resolution (required for Tailscale MagicDNS)
+          "/etc/resolv.conf"
+          "/etc/hosts"
+          "/etc/nsswitch.conf"
+          "/run/systemd/resolve"
         ]
         ++ optionals (cfg.systemPromptFile != null) [ cfg.systemPromptFile ];
       };
