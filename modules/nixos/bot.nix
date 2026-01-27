@@ -120,8 +120,12 @@ in
       after = [
         "network-online.target"
         "prosody.service"
+        "mcp-gateway.service"  # Bot needs mcp-gateway for tools
       ];
-      wants = [ "network-online.target" ];
+      wants = [
+        "network-online.target"
+        "mcp-gateway.service"
+      ];
       wantedBy = [ "multi-user.target" ];
 
       environment = {
