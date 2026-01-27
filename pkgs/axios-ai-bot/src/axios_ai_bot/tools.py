@@ -12,13 +12,20 @@ logger = logging.getLogger(__name__)
 # Category mappings inferred from server names
 SERVER_CATEGORIES: dict[str, str] = {
     "axios-ai-mail": "email",
-    "mcp-dav": "calendar",  # Also handles contacts
+    "mcp-dav": "calendar",
     "git": "code",
     "github": "code",
     "filesystem": "files",
     "brave-search": "search",
+    "context7": "search",
     "time": "general",
     "sequential-thinking": "general",
+}
+
+# Tool name patterns that override server category
+TOOL_NAME_CATEGORIES: dict[str, str] = {
+    "contact": "contacts",  # Any tool with "contact" in name -> contacts category
+    "search": "search",
 }
 
 # Keywords for fast intent classification
@@ -47,10 +54,14 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
     ],
     "contacts": [
         "contact",
+        "contacts",
         "phone number",
         "address",
         "email address",
         "who is",
+        "find person",
+        "look up person",
+        "named",  # "anyone named John"
     ],
     "code": [
         "git",
@@ -143,8 +154,11 @@ class DynamicToolRegistry:
         # API returns a flat list of tools with server_id field
         for tool in raw:
             server_id = tool.get("server_id", "unknown")
-            category = self._infer_category(server_id)
-            tool_name = f"{server_id}__{tool['name']}"
+            original_name = tool["name"]
+            tool_name = f"{server_id}__{original_name}"
+
+            # Infer category from tool name patterns first, then server
+            category = self._infer_category_from_name(original_name, server_id)
 
             self.tools.append(
                 {
@@ -156,11 +170,31 @@ class DynamicToolRegistry:
                 }
             )
             self.tool_categories[category].append(tool_name)
-            self.tool_map[tool_name] = (server_id, tool["name"])
+            self.tool_map[tool_name] = (server_id, original_name)
 
         self._last_refresh = asyncio.get_event_loop().time()
         logger.info(f"Refreshed {len(self.tools)} tools from mcp-gateway")
         return len(self.tools)
+
+    def _infer_category_from_name(self, tool_name: str, server_id: str) -> str:
+        """Infer category from tool name patterns, falling back to server ID.
+
+        Args:
+            tool_name: The original tool name (e.g., 'search_contacts')
+            server_id: The server ID (e.g., 'mcp-dav')
+
+        Returns:
+            The inferred category
+        """
+        tool_name_lower = tool_name.lower()
+
+        # Check tool name patterns first
+        for pattern, category in TOOL_NAME_CATEGORIES.items():
+            if pattern in tool_name_lower:
+                return category
+
+        # Fall back to server-based category
+        return SERVER_CATEGORIES.get(server_id, "other")
 
     def _infer_category(self, server_id: str) -> str:
         """Infer category from server ID."""
