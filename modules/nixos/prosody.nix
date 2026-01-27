@@ -276,6 +276,11 @@ in
       wants = [ "tailscaled.service" ];
     };
 
+    # Add hosts entry for the XMPP domain (required for bot sandbox DNS resolution)
+    networking.hosts = {
+      "127.0.0.1" = [ cfg.domain ];
+    };
+
     # Tailscale serve for XMPP (creates chat.<tailnet>.ts.net)
     systemd.services.tailscale-serve-xmpp = mkIf useTailscaleServe {
       description = "Tailscale Serve for XMPP (${cfg.tailscaleServe.serviceName})";
