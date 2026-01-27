@@ -144,9 +144,9 @@ class AxiosBot(slixmpp.ClientXMPP):
 
         try:
             if self._server:
-                self.connect(address=(self._server, self._port), use_tls=self._use_tls)
+                self.connect((self._server, self._port))
             else:
-                self.connect(use_tls=self._use_tls)
+                self.connect()
         except Exception as e:
             logger.error(f"Reconnection failed: {e}")
 
@@ -167,7 +167,7 @@ class AxiosBot(slixmpp.ClientXMPP):
     async def run(self) -> None:
         """Connect and run the bot."""
         if self._server:
-            self.connect(address=(self._server, self._port), use_tls=self._use_tls)
+            self.connect((self._server, self._port))
         else:
-            self.connect(use_tls=self._use_tls)
+            self.connect()
         await self.disconnected
