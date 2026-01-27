@@ -135,6 +135,9 @@ in
     services.prosody = {
       enable = true;
 
+      # Disable XEP-0423 compliance check (not needed for internal family chat)
+      xmppComplianceSuite = false;
+
       # Admin users
       admins = cfg.admins;
 
