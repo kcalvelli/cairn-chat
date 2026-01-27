@@ -1,0 +1,71 @@
+# Project: axios-chat
+
+## Purpose
+
+A family-oriented XMPP chat system with an integrated AI assistant, designed for the axios ecosystem. Provides real-time messaging between family members on a private Tailscale network, with an AI bot that can execute actions via mcp-gateway (email, calendar, contacts, and any future MCP servers).
+
+## Scope
+
+- Prosody XMPP server configured for Tailscale-only access
+- AI bot (axios-ai-bot) that appears as an XMPP contact
+- Dynamic tool discovery from mcp-gateway
+- NixOS and home-manager modules for declarative configuration
+- Standalone Nix flake consumable by axios and other projects
+
+## Non-Goals
+
+- Public internet exposure (Tailscale provides network security)
+- Application-level authentication (Tailscale provides identity)
+- Web UI / PWA interface (use existing XMPP clients)
+- Running local LLMs (use Claude API for reliable tool calling)
+- Federation with external XMPP servers
+
+## Architecture Principles
+
+1. **Flake-First**: Standalone flake that exports NixOS and home-manager modules
+2. **Tailscale-Only Security**: Bind to Tailscale interface, no external access
+3. **Dynamic Tool Discovery**: Query mcp-gateway for available tools at runtime
+4. **Cost-Optimized LLM Usage**: Intent classification with Haiku, execution with Sonnet
+5. **Loose Coupling**: Runtime configuration for mcp-gateway URL, not build-time dependency
+
+## Tech Stack
+
+- **XMPP Server**: Prosody (via NixOS services.prosody)
+- **Bot Framework**: Python with slixmpp (async XMPP library)
+- **LLM Integration**: Anthropic Claude API (Haiku + Sonnet)
+- **Tool Gateway**: mcp-gateway (runtime dependency via HTTP)
+- **Deployment**: Nix flake with NixOS + home-manager modules
+- **Secret Management**: Integration with agenix/sops-nix
+
+## Project Conventions
+
+### Code Style
+
+- **Python**: PEP 8, formatted with Black/Ruff. Type hints required.
+- **Nix**: nixfmt-rfc-style formatting.
+- **Naming**: snake_case for Python, camelCase for Nix options.
+
+### Module Structure
+
+- NixOS modules in `modules/nixos/`
+- Home-manager modules in `modules/home-manager/`
+- Python package in `pkgs/axios-ai-bot/`
+
+### Testing Strategy
+
+- `openspec validate` for architectural changes
+- pytest for Python bot logic
+- Integration tests with mock XMPP server
+
+## Related Projects
+
+- [axios](https://github.com/kcalvelli/axios) - NixOS framework that imports this
+- [mcp-gateway](https://github.com/kcalvelli/mcp-gateway) - Tool aggregation gateway
+- [axios-ai-mail](https://github.com/kcalvelli/axios-ai-mail) - Email MCP server
+- [axios-dav](https://github.com/kcalvelli/axios-dav) - Calendar/contacts MCP server
+
+## External Dependencies
+
+- Anthropic API key (for Claude access)
+- mcp-gateway running on the network
+- Tailscale for network access control

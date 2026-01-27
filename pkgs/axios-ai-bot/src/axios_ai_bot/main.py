@@ -1,0 +1,157 @@
+"""Main entry point for axios-ai-bot."""
+
+import asyncio
+import logging
+import os
+import signal
+import sys
+from pathlib import Path
+
+from .llm import LLMClient
+from .router import create_message_handler
+from .tools import DynamicToolRegistry
+from .xmpp import AxiosBot
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+
+def load_secret(path: str) -> str:
+    """Load a secret from a file.
+
+    Args:
+        path: Path to the secret file
+
+    Returns:
+        The secret value with whitespace stripped
+    """
+    return Path(path).read_text().strip()
+
+
+def get_config() -> dict[str, str]:
+    """Load configuration from environment variables.
+
+    Returns:
+        Configuration dictionary
+    """
+    config: dict[str, str] = {}
+
+    # Required: XMPP credentials
+    xmpp_jid = os.environ.get("XMPP_JID")
+    if not xmpp_jid:
+        logger.error("XMPP_JID environment variable is required")
+        sys.exit(1)
+    config["xmpp_jid"] = xmpp_jid
+
+    xmpp_password_file = os.environ.get("XMPP_PASSWORD_FILE")
+    if xmpp_password_file:
+        config["xmpp_password"] = load_secret(xmpp_password_file)
+    else:
+        xmpp_password = os.environ.get("XMPP_PASSWORD")
+        if not xmpp_password:
+            logger.error("XMPP_PASSWORD or XMPP_PASSWORD_FILE is required")
+            sys.exit(1)
+        config["xmpp_password"] = xmpp_password
+
+    # Required: Anthropic API key
+    anthropic_key_file = os.environ.get("ANTHROPIC_API_KEY_FILE")
+    if anthropic_key_file:
+        config["anthropic_key"] = load_secret(anthropic_key_file)
+    else:
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not anthropic_key:
+            logger.error("ANTHROPIC_API_KEY or ANTHROPIC_API_KEY_FILE is required")
+            sys.exit(1)
+        config["anthropic_key"] = anthropic_key
+
+    # Optional: mcp-gateway URL
+    config["mcp_gateway_url"] = os.environ.get("MCP_GATEWAY_URL", "http://localhost:8085")
+
+    # Optional: Tool refresh interval
+    config["tool_refresh_interval"] = os.environ.get("TOOL_REFRESH_INTERVAL", "300")
+
+    # Optional: Custom system prompt
+    system_prompt_file = os.environ.get("SYSTEM_PROMPT_FILE")
+    if system_prompt_file and Path(system_prompt_file).exists():
+        config["system_prompt"] = Path(system_prompt_file).read_text()
+    else:
+        config["system_prompt"] = ""
+
+    return config
+
+
+async def async_main() -> None:
+    """Async main entry point."""
+    logger.info("Starting axios-ai-bot...")
+
+    # Load configuration
+    config = get_config()
+
+    # Initialize components
+    tool_registry = DynamicToolRegistry(
+        gateway_url=config["mcp_gateway_url"],
+        refresh_interval=int(config["tool_refresh_interval"]),
+    )
+
+    llm_client = LLMClient(
+        api_key=config["anthropic_key"],
+        system_prompt=config["system_prompt"] or None,
+    )
+
+    # Create message handler
+    message_handler = create_message_handler(tool_registry, llm_client)
+
+    # Create XMPP bot
+    bot = AxiosBot(
+        jid=config["xmpp_jid"],
+        password=config["xmpp_password"],
+        message_handler=message_handler,
+    )
+
+    # Set up signal handlers
+    loop = asyncio.get_running_loop()
+    stop_event = asyncio.Event()
+
+    def signal_handler() -> None:
+        logger.info("Shutdown signal received")
+        stop_event.set()
+
+    for sig in (signal.SIGINT, signal.SIGTERM):
+        loop.add_signal_handler(sig, signal_handler)
+
+    # Start tool registry refresh
+    try:
+        await tool_registry.start()
+        logger.info(f"Loaded {len(tool_registry.tools)} tools from mcp-gateway")
+    except Exception as e:
+        logger.warning(f"Failed to load tools from mcp-gateway: {e}")
+        logger.warning("Bot will continue without tools - check mcp-gateway status")
+
+    # Run the bot
+    logger.info(f"Connecting as {config['xmpp_jid']}...")
+    bot.connect()
+
+    # Wait for shutdown signal
+    await stop_event.wait()
+
+    # Cleanup
+    logger.info("Shutting down...")
+    await tool_registry.stop()
+    bot.disconnect()
+    logger.info("Goodbye!")
+
+
+def main() -> None:
+    """Main entry point."""
+    try:
+        asyncio.run(async_main())
+    except KeyboardInterrupt:
+        pass
+
+
+if __name__ == "__main__":
+    main()
