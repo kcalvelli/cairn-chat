@@ -139,10 +139,32 @@ class DynamicToolRegistry:
             Number of tools discovered
         """
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # First get the tool list
                 resp = await client.get(f"{self.gateway_url}/api/tools")
                 resp.raise_for_status()
-                raw = resp.json()
+                tool_list = resp.json()
+
+                # Fetch full schemas in parallel
+                async def fetch_schema(tool: dict) -> dict:
+                    server_id = tool.get("server_id", "unknown")
+                    name = tool["name"]
+                    try:
+                        schema_resp = await client.get(
+                            f"{self.gateway_url}/api/tools/{server_id}/{name}"
+                        )
+                        if schema_resp.status_code == 200:
+                            return schema_resp.json()
+                    except Exception as e:
+                        logger.debug(f"Failed to fetch schema for {server_id}/{name}: {e}")
+                    return tool  # Return original if schema fetch fails
+
+                # Fetch all schemas in parallel
+                tools_with_schemas = await asyncio.gather(
+                    *[fetch_schema(t) for t in tool_list],
+                    return_exceptions=True
+                )
+
         except httpx.HTTPError as e:
             logger.error(f"Failed to fetch tools from mcp-gateway: {e}")
             raise
@@ -151,20 +173,29 @@ class DynamicToolRegistry:
         self.tool_categories = defaultdict(list)
         self.tool_map = {}
 
-        # API returns a flat list of tools with server_id field
-        for tool in raw:
-            server_id = tool.get("server_id", "unknown")
-            original_name = tool["name"]
+        # Process tools with their schemas
+        for i, tool in enumerate(tools_with_schemas):
+            if isinstance(tool, Exception):
+                tool = tool_list[i]  # Fallback to original
+
+            server_id = tool.get("server_id", tool_list[i].get("server_id", "unknown"))
+            original_name = tool.get("name", tool_list[i]["name"])
             tool_name = f"{server_id}__{original_name}"
 
             # Infer category from tool name patterns first, then server
             category = self._infer_category_from_name(original_name, server_id)
 
+            # Get input schema, ensuring it has required 'type' field for Claude
+            input_schema = tool.get("input_schema") or tool.get("inputSchema") or {}
+            if not input_schema or "type" not in input_schema:
+                # Default to empty object schema if not provided
+                input_schema = {"type": "object", "properties": {}}
+
             self.tools.append(
                 {
                     "name": tool_name,
                     "description": tool.get("description", ""),
-                    "input_schema": tool.get("inputSchema", {}),
+                    "input_schema": input_schema,
                     "category": category,
                     "server": server_id,
                 }
