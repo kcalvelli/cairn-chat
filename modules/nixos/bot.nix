@@ -40,6 +40,22 @@ in
       description = "XMPP domain for the bot to connect to.";
     };
 
+    xmppServer = mkOption {
+      type = types.str;
+      default = "127.0.0.1";
+      description = ''
+        XMPP server address to connect to.
+        Defaults to 127.0.0.1 for local Prosody with Tailscale serve.
+        Set to the actual server IP/hostname for remote connections.
+      '';
+    };
+
+    xmppPort = mkOption {
+      type = types.int;
+      default = 5222;
+      description = "XMPP server port.";
+    };
+
     xmppPasswordFile = mkOption {
       type = types.path;
       description = ''
@@ -110,6 +126,8 @@ in
 
       environment = {
         XMPP_JID = "${cfg.xmppUser}@${cfg.xmppDomain}";
+        XMPP_SERVER = cfg.xmppServer;
+        XMPP_PORT = toString cfg.xmppPort;
         XMPP_PASSWORD_FILE = cfg.xmppPasswordFile;
         ANTHROPIC_API_KEY_FILE = cfg.claudeApiKeyFile;
         MCP_GATEWAY_URL = cfg.mcpGatewayUrl;

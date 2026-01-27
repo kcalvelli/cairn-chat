@@ -81,6 +81,11 @@ def get_config() -> dict[str, str]:
     else:
         config["system_prompt"] = ""
 
+    # Optional: XMPP server address (for connecting to localhost with different domain)
+    config["xmpp_server"] = os.environ.get("XMPP_SERVER", "")
+    config["xmpp_port"] = int(os.environ.get("XMPP_PORT", "5222"))
+    config["xmpp_verify_ssl"] = os.environ.get("XMPP_VERIFY_SSL", "false").lower() == "true"
+
     return config
 
 
@@ -110,6 +115,9 @@ async def async_main() -> None:
         jid=config["xmpp_jid"],
         password=config["xmpp_password"],
         message_handler=message_handler,
+        server=config["xmpp_server"] or None,
+        port=config["xmpp_port"],
+        verify_ssl=config["xmpp_verify_ssl"],
     )
 
     # Set up signal handlers
@@ -132,8 +140,12 @@ async def async_main() -> None:
         logger.warning("Bot will continue without tools - check mcp-gateway status")
 
     # Run the bot
-    logger.info(f"Connecting as {config['xmpp_jid']}...")
-    bot.connect()
+    server_info = f" via {config['xmpp_server']}:{config['xmpp_port']}" if config["xmpp_server"] else ""
+    logger.info(f"Connecting as {config['xmpp_jid']}{server_info}...")
+    if config["xmpp_server"]:
+        bot.connect(address=(config["xmpp_server"], config["xmpp_port"]))
+    else:
+        bot.connect()
 
     # Wait for shutdown signal
     await stop_event.wait()

@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import ssl
 from collections.abc import Callable, Coroutine
 from typing import Any
 
@@ -22,6 +23,10 @@ class AxiosBot(slixmpp.ClientXMPP):
         jid: str,
         password: str,
         message_handler: MessageHandler | None = None,
+        server: str | None = None,
+        port: int = 5222,
+        use_tls: bool = True,
+        verify_ssl: bool = False,
     ):
         """Initialize the XMPP bot.
 
@@ -30,12 +35,25 @@ class AxiosBot(slixmpp.ClientXMPP):
             password: The bot's XMPP password
             message_handler: Async callback for handling messages.
                 Takes (from_jid, to_jid, body) and returns optional response.
+            server: XMPP server hostname (defaults to domain from JID)
+            port: XMPP server port (default 5222)
+            use_tls: Whether to use TLS (default True)
+            verify_ssl: Whether to verify SSL certificates (default False for self-signed)
         """
         super().__init__(jid, password)
 
         self.message_handler = message_handler
         self._reconnect_delay = 1.0
         self._max_reconnect_delay = 60.0
+        self._server = server
+        self._port = port
+        self._use_tls = use_tls
+
+        # Configure SSL context for self-signed certificates
+        if not verify_ssl:
+            self.ssl_context = ssl.create_default_context()
+            self.ssl_context.check_hostname = False
+            self.ssl_context.verify_mode = ssl.CERT_NONE
 
         # Register plugins
         self.register_plugin("xep_0030")  # Service Discovery
@@ -125,7 +143,10 @@ class AxiosBot(slixmpp.ClientXMPP):
         self._reconnect_delay = min(self._reconnect_delay * 2, self._max_reconnect_delay)
 
         try:
-            self.connect()
+            if self._server:
+                self.connect(address=(self._server, self._port), use_tls=self._use_tls)
+            else:
+                self.connect(use_tls=self._use_tls)
         except Exception as e:
             logger.error(f"Reconnection failed: {e}")
 
@@ -145,5 +166,8 @@ class AxiosBot(slixmpp.ClientXMPP):
 
     async def run(self) -> None:
         """Connect and run the bot."""
-        self.connect()
+        if self._server:
+            self.connect(address=(self._server, self._port), use_tls=self._use_tls)
+        else:
+            self.connect(use_tls=self._use_tls)
         await self.disconnected
