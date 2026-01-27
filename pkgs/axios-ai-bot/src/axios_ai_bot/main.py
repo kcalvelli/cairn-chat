@@ -13,11 +13,16 @@ from .tools import DynamicToolRegistry
 from .xmpp import AxiosBot
 
 # Configure logging
+log_level = os.environ.get("LOG_LEVEL", "INFO")
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# Enable slixmpp debug logging if DEBUG level
+if log_level == "DEBUG":
+    logging.getLogger("slixmpp").setLevel(logging.DEBUG)
 
 
 def load_secret(path: str) -> str:
