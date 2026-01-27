@@ -140,22 +140,23 @@ class DynamicToolRegistry:
         self.tool_categories = defaultdict(list)
         self.tool_map = {}
 
-        for server_id, server_tools in raw.items():
+        # API returns a flat list of tools with server_id field
+        for tool in raw:
+            server_id = tool.get("server_id", "unknown")
             category = self._infer_category(server_id)
+            tool_name = f"{server_id}__{tool['name']}"
 
-            for tool in server_tools:
-                tool_name = f"{server_id}__{tool['name']}"
-                self.tools.append(
-                    {
-                        "name": tool_name,
-                        "description": tool.get("description", ""),
-                        "input_schema": tool.get("inputSchema", {}),
-                        "category": category,
-                        "server": server_id,
-                    }
-                )
-                self.tool_categories[category].append(tool_name)
-                self.tool_map[tool_name] = (server_id, tool["name"])
+            self.tools.append(
+                {
+                    "name": tool_name,
+                    "description": tool.get("description", ""),
+                    "input_schema": tool.get("inputSchema", {}),
+                    "category": category,
+                    "server": server_id,
+                }
+            )
+            self.tool_categories[category].append(tool_name)
+            self.tool_map[tool_name] = (server_id, tool["name"])
 
         self._last_refresh = asyncio.get_event_loop().time()
         logger.info(f"Refreshed {len(self.tools)} tools from mcp-gateway")
