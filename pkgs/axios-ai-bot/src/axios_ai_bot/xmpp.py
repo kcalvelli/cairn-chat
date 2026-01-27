@@ -42,6 +42,9 @@ class AxiosBot(slixmpp.ClientXMPP):
         """
         super().__init__(jid, password)
 
+        # Disable aiodns to use system resolver (supports Tailscale MagicDNS)
+        self.use_aiodns = False
+
         self.message_handler = message_handler
         self._reconnect_delay = 1.0
         self._max_reconnect_delay = 60.0
