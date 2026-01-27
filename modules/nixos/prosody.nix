@@ -175,35 +175,31 @@ in
       s2sRequireEncryption = false;
       s2sSecureAuth = false;
 
-      # Modules
-      modules = [
-        "roster"
-        "saslauth"
-        "tls"
-        "dialback"
-        "disco"
-        "posix"
-        "private"
-        "vcard"
-        "ping"
-        "register"
-        "admin_adhoc"
-        "blocklist"
-        "carbons"
-        "smacks"
-        "csi"
-        "cloud_notify"
-      ]
-      ++ optionals cfg.messageArchive.enable [ "mam" ];
-
-      # Disable s2s module
-      extraModules = [ ];
+      # Modules - attrset format (module name = enabled)
+      modules = {
+        roster = true;
+        saslauth = true;
+        tls = true;
+        dialback = true;
+        disco = true;
+        posix = true;
+        private = true;
+        vcard = true;
+        ping = true;
+        register = true;
+        admin_adhoc = true;
+        blocklist = true;
+        carbons = true;
+        smacks = true;
+        csi = true;
+        cloud_notify = true;
+        mam = cfg.messageArchive.enable;
+        # Disable s2s (federation)
+        s2s = false;
+      };
 
       # Extra configuration
       extraConfig = ''
-        -- Disable server-to-server federation
-        modules_disabled = { "s2s" }
-
         -- Authentication
         authentication = "internal_hashed"
 
