@@ -153,13 +153,27 @@ async def async_main() -> None:
     else:
         bot.connect()
 
-    # Wait for shutdown signal
-    await stop_event.wait()
+    # Wait for either shutdown signal or bot disconnection
+    # This allows slixmpp's event loop to process while we wait
+    async def wait_for_stop():
+        await stop_event.wait()
+        bot.disconnect()
+
+    # Run until stopped or disconnected
+    try:
+        await asyncio.gather(
+            wait_for_stop(),
+            bot.disconnected,
+            return_exceptions=True,
+        )
+    except asyncio.CancelledError:
+        pass
 
     # Cleanup
     logger.info("Shutting down...")
     await tool_registry.stop()
-    bot.disconnect()
+    if bot.is_connected():
+        bot.disconnect()
     logger.info("Goodbye!")
 
 
