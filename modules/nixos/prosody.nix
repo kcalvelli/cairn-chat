@@ -1,7 +1,7 @@
 # NixOS module for Prosody XMPP server (Tailscale-only configuration)
 #
 # This module wraps services.prosody with secure defaults for family chat:
-# - Binds only to Tailscale interface
+# - Uses Tailscale serve for DNS name (chat.<tailnet>.ts.net)
 # - Disables federation (s2s)
 # - Enables MUC for group chats
 # - Requires encryption
@@ -16,6 +16,7 @@ with lib;
 
 let
   cfg = config.services.axios-chat.prosody;
+  useTailscaleServe = cfg.tailscaleServe.enable;
 in
 {
   options.services.axios-chat.prosody = {
@@ -30,12 +31,27 @@ in
       '';
     };
 
+    tailscaleServe = {
+      enable = mkEnableOption "Tailscale serve for XMPP (creates chat.<tailnet>.ts.net)" // {
+        default = true;
+      };
+
+      serviceName = mkOption {
+        type = types.str;
+        default = "chat";
+        description = ''
+          Tailscale service name. Creates DNS: <serviceName>.<tailnet>.ts.net
+        '';
+      };
+    };
+
     tailscaleIP = mkOption {
-      type = types.str;
+      type = types.nullOr types.str;
+      default = null;
       example = "100.64.0.1";
       description = ''
-        The Tailscale IP address to bind Prosody to.
-        This ensures the server is only accessible via Tailscale.
+        The Tailscale IP address to bind Prosody to (legacy mode).
+        Only needed if tailscaleServe.enable = false.
       '';
     };
 
@@ -104,9 +120,11 @@ in
         message = "services.axios-chat.prosody.domain must be set";
       }
       {
-        assertion = cfg.tailscaleIP != "";
+        assertion = useTailscaleServe || cfg.tailscaleIP != null;
         message = ''
-          services.axios-chat.prosody.tailscaleIP must be set.
+          services.axios-chat.prosody requires either:
+          - tailscaleServe.enable = true (recommended), OR
+          - tailscaleIP to be set (legacy mode)
 
           You can find your Tailscale IP with: tailscale ip -4
         '';
@@ -117,8 +135,8 @@ in
     services.prosody = {
       enable = true;
 
-      # Bind only to Tailscale interface
-      interfaces = [ cfg.tailscaleIP ];
+      # Bind to localhost when using Tailscale serve, otherwise bind to Tailscale IP
+      interfaces = if useTailscaleServe then [ "127.0.0.1" ] else [ cfg.tailscaleIP ];
 
       # Admin users
       admins = cfg.admins;
@@ -246,6 +264,44 @@ in
     systemd.services.prosody = {
       after = [ "tailscaled.service" ];
       wants = [ "tailscaled.service" ];
+    };
+
+    # Tailscale serve for XMPP (creates chat.<tailnet>.ts.net)
+    systemd.services.tailscale-serve-xmpp = mkIf useTailscaleServe {
+      description = "Tailscale Serve for XMPP (${cfg.tailscaleServe.serviceName})";
+      after = [
+        "tailscaled.service"
+        "prosody.service"
+        "network-online.target"
+      ];
+      wants = [
+        "tailscaled.service"
+        "network-online.target"
+      ];
+      wantedBy = [ "multi-user.target" ];
+
+      # Wait for Tailscale to be fully ready
+      preStart = ''
+        # Wait for Tailscale to be connected
+        for i in $(seq 1 30); do
+          status=$(${pkgs.tailscale}/bin/tailscale status --json 2>/dev/null | ${pkgs.jq}/bin/jq -r '.BackendState // "NoState"')
+          if [ "$status" = "Running" ]; then
+            break
+          fi
+          echo "Waiting for Tailscale to be ready (attempt $i/30, state: $status)..."
+          sleep 2
+        done
+      '';
+
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        # Expose XMPP c2s port (5222) via Tailscale serve
+        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5222 tcp://127.0.0.1:5222";
+        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5222 off";
+        Restart = "on-failure";
+        RestartSec = "5s";
+      };
     };
   };
 }
