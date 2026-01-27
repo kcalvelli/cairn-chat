@@ -48,10 +48,10 @@ in
       '';
     };
 
-    anthropicKeyFile = mkOption {
+    claudeApiKeyFile = mkOption {
       type = types.path;
       description = ''
-        Path to file containing the Anthropic API key.
+        Path to file containing the Claude/Anthropic API key.
         The file should contain only the API key with no trailing newline.
       '';
     };
@@ -111,7 +111,7 @@ in
       environment = {
         XMPP_JID = "${cfg.xmppUser}@${cfg.xmppDomain}";
         XMPP_PASSWORD_FILE = cfg.xmppPasswordFile;
-        ANTHROPIC_API_KEY_FILE = cfg.anthropicKeyFile;
+        ANTHROPIC_API_KEY_FILE = cfg.claudeApiKeyFile;
         MCP_GATEWAY_URL = cfg.mcpGatewayUrl;
         TOOL_REFRESH_INTERVAL = toString cfg.toolRefreshInterval;
         PYTHONUNBUFFERED = "1";
@@ -152,7 +152,7 @@ in
         # Allow reading secret files
         BindReadOnlyPaths = [
           cfg.xmppPasswordFile
-          cfg.anthropicKeyFile
+          cfg.claudeApiKeyFile
         ]
         ++ optionals (cfg.systemPromptFile != null) [ cfg.systemPromptFile ];
       };
