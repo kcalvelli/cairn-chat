@@ -1,6 +1,8 @@
 """Claude API integration with Haiku routing and Sonnet execution."""
 
 import logging
+import random
+from collections.abc import Awaitable, Callable
 from typing import Any
 
 from anthropic import Anthropic
@@ -11,6 +13,47 @@ logger = logging.getLogger(__name__)
 HAIKU_MODEL = "claude-3-5-haiku-latest"
 SONNET_MODEL = "claude-sonnet-4-20250514"
 
+# Type alias for progress callback
+ProgressCallback = Callable[[str], Awaitable[None]]
+
+# Witty progress messages organized by phase
+PROGRESS_MESSAGES = {
+    "thinking": [
+        "🤔 Let me think about this...",
+        "🧠 Processing your request...",
+        "💭 Hmm, interesting question...",
+        "🔍 Looking into it...",
+        "⚡ On it!",
+    ],
+    "tool_start": [
+        "🔧 Firing up the tools...",
+        "🛠️ Rolling up my sleeves...",
+        "⚙️ Getting to work...",
+        "🎯 Found what I need, executing...",
+        "🚀 Launching operation...",
+    ],
+    "tool_working": [
+        "⏳ Still working on it...",
+        "🔄 Making progress...",
+        "📊 Crunching the data...",
+        "🎪 Juggling some tasks here...",
+        "🏃 Almost there...",
+    ],
+    "multi_step": [
+        "📋 This needs a few steps, hang tight...",
+        "🎯 Multi-step operation in progress...",
+        "🔗 Chaining some actions together...",
+        "🎭 Performing a little orchestration...",
+    ],
+    "slow_response": [
+        "☕ Claude's thinking hard about this one...",
+        "🐢 Taking a bit longer than usual...",
+        "🌊 Navigating some heavy traffic...",
+        "⏱️ Still here, just being thorough!",
+        "🧘 Patience, grasshopper...",
+    ],
+}
+
 # Default system prompts
 DEFAULT_SYSTEM_PROMPT = """You are Axios AI, a helpful family assistant. You can help with:
 - Email: Read, search, compose, and send emails
@@ -20,6 +63,12 @@ DEFAULT_SYSTEM_PROMPT = """You are Axios AI, a helpful family assistant. You can
 
 Be concise and friendly. When using tools, explain what you're doing briefly.
 If a task requires multiple steps, complete them without asking for confirmation unless critical."""
+
+def get_progress_message(phase: str) -> str:
+    """Get a random progress message for the given phase."""
+    messages = PROGRESS_MESSAGES.get(phase, PROGRESS_MESSAGES["thinking"])
+    return random.choice(messages)
+
 
 CLASSIFIER_PROMPT = """Classify the user's intent into one or more categories.
 
@@ -118,6 +167,7 @@ class LLMClient:
         message: str,
         tools: list[dict[str, Any]],
         tool_executor: Any,  # Callable for executing tools
+        progress_callback: ProgressCallback | None = None,
     ) -> str:
         """Execute a request using Sonnet with tools.
 
@@ -126,6 +176,7 @@ class LLMClient:
             message: The user's message
             tools: List of available tools in Claude format
             tool_executor: Async callable that takes (tool_name, arguments) and returns result
+            progress_callback: Optional async callback for progress updates
 
         Returns:
             The assistant's final response text
@@ -133,6 +184,14 @@ class LLMClient:
         # Add user message to history
         self._add_to_history(user_jid, "user", message)
         history = self._get_history(user_jid)
+
+        async def send_progress(phase: str) -> None:
+            """Send a progress message if callback is available."""
+            if progress_callback:
+                try:
+                    await progress_callback(get_progress_message(phase))
+                except Exception as e:
+                    logger.debug(f"Failed to send progress: {e}")
 
         try:
             # Initial request
@@ -144,10 +203,23 @@ class LLMClient:
                 tools=tools if tools else None,
             )
 
+            # Track tool iterations for multi-step progress
+            tool_iteration = 0
+
             # Process tool calls in a loop
             while response.stop_reason == "tool_use":
+                tool_iteration += 1
+
                 # Find all tool use blocks
                 tool_uses = [block for block in response.content if block.type == "tool_use"]
+
+                # Send appropriate progress message
+                if tool_iteration == 1:
+                    await send_progress("tool_start")
+                elif tool_iteration == 2:
+                    await send_progress("multi_step")
+                elif tool_iteration > 2:
+                    await send_progress("tool_working")
 
                 # Execute each tool
                 tool_results = []

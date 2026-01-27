@@ -112,18 +112,26 @@ async def async_main() -> None:
         system_prompt=config["system_prompt"] or None,
     )
 
-    # Create message handler
-    message_handler = create_message_handler(tool_registry, llm_client)
-
-    # Create XMPP bot
+    # Create XMPP bot first (without handler)
     bot = AxiosBot(
         jid=config["xmpp_jid"],
         password=config["xmpp_password"],
-        message_handler=message_handler,
+        message_handler=None,  # Set after creating handler
         server=config["xmpp_server"] or None,
         port=config["xmpp_port"],
         verify_ssl=config["xmpp_verify_ssl"],
     )
+
+    # Create send_message callback for progress updates
+    async def send_progress_message(to_jid: str, message: str) -> None:
+        """Send a progress message to the user."""
+        bot.send_message(mto=to_jid, mbody=message, mtype="chat")
+
+    # Create message handler with progress callback
+    message_handler = create_message_handler(
+        tool_registry, llm_client, send_message=send_progress_message
+    )
+    bot.set_message_handler(message_handler)
 
     # Set up signal handlers
     loop = asyncio.get_running_loop()
@@ -145,7 +153,9 @@ async def async_main() -> None:
         logger.warning("Bot will continue without tools - check mcp-gateway status")
 
     # Run the bot
-    server_info = f" via {config['xmpp_server']}:{config['xmpp_port']}" if config["xmpp_server"] else ""
+    server_info = ""
+    if config["xmpp_server"]:
+        server_info = f" via {config['xmpp_server']}:{config['xmpp_port']}"
     logger.info(f"Connecting as {config['xmpp_jid']}{server_info}...")
     if config["xmpp_server"]:
         # Use positional argument for address tuple (slixmpp compatibility)
