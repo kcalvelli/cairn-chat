@@ -172,14 +172,13 @@ in
       s2sRequireEncryption = false;
       s2sSecureAuth = false;
 
-      # Modules - attrset format (module name = enabled)
+      # Modules - only use options exposed by NixOS prosody module
       modules = {
         roster = true;
         saslauth = true;
         tls = true;
-        dialback = true;
+        dialback = false; # Disable s2s dialback (no federation)
         disco = true;
-        posix = true;
         private = true;
         vcard = true;
         ping = true;
@@ -191,14 +190,18 @@ in
         csi = true;
         cloud_notify = true;
         mam = cfg.messageArchive.enable;
-        # Disable s2s (federation)
-        s2s = false;
       };
 
       # Extra configuration
       extraConfig = ''
         -- Bind to localhost (Tailscale serve) or Tailscale IP (legacy)
         interfaces = { "${if useTailscaleServe then "127.0.0.1" else cfg.tailscaleIP}" }
+
+        -- Enable posix module (not exposed as NixOS option)
+        modules_enabled = { "posix" }
+
+        -- Disable s2s module (federation)
+        modules_disabled = { "s2s" }
 
         -- Authentication
         authentication = "internal_hashed"
