@@ -193,24 +193,18 @@ in
         csi = true;
         cloud_notify = true;
         mam = cfg.messageArchive.enable;
+        posix = true; # Required for proper daemon operation
       };
 
       # Extra configuration
+      # NOTE: Avoid duplicating options already set by NixOS prosody module
+      # (modules_enabled, authentication, allow_registration, log are set above)
       extraConfig = ''
         -- Bind to localhost (Tailscale serve) or Tailscale IP (legacy)
         interfaces = { "${if useTailscaleServe then "127.0.0.1" else cfg.tailscaleIP}" }
 
-        -- Enable posix module (not exposed as NixOS option)
-        modules_enabled = { "posix" }
-
         -- Disable s2s module (federation)
         modules_disabled = { "s2s" }
-
-        -- Authentication
-        authentication = "internal_hashed"
-
-        -- Allow registration only by admins
-        allow_registration = false
 
         -- Message Archive Management
         ${optionalString cfg.messageArchive.enable ''
@@ -221,19 +215,12 @@ in
         -- Storage
         storage = "internal"
 
-        -- Logging
-        log = {
-          info = "*syslog";
-          warn = "*syslog";
-          error = "*syslog";
-        }
-
         ${cfg.extraConfig}
       '';
     };
 
-    # Generate self-signed certificates for the domain
-    # In production, you might want to use Let's Encrypt or similar
+    # Generate self-signed certificates for the domain with proper SANs
+    # Modern TLS requires Subject Alternative Names for hostname validation
     systemd.services.prosody-cert-init = {
       description = "Generate Prosody self-signed certificates";
       before = [ "prosody.service" ];
@@ -244,22 +231,43 @@ in
         RemainAfterExit = true;
       };
 
-      script = ''
-        CERT_DIR="/var/lib/prosody"
-        CERT_FILE="$CERT_DIR/${cfg.domain}.crt"
-        KEY_FILE="$CERT_DIR/${cfg.domain}.key"
+      script =
+        let
+          mucDomain = if cfg.muc.domain != "" then cfg.muc.domain else "muc.${cfg.domain}";
+        in
+        ''
+          CERT_DIR="/var/lib/prosody"
+          CERT_FILE="$CERT_DIR/${cfg.domain}.crt"
+          KEY_FILE="$CERT_DIR/${cfg.domain}.key"
+          RUN_CERT_DIR="/run/prosody/certs"
 
-        mkdir -p "$CERT_DIR"
+          mkdir -p "$CERT_DIR"
+          mkdir -p "$RUN_CERT_DIR"
 
-        if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
-          ${pkgs.openssl}/bin/openssl req -new -x509 -days 3650 -nodes \
-            -out "$CERT_FILE" \
-            -keyout "$KEY_FILE" \
-            -subj "/CN=${cfg.domain}"
-          chown prosody:prosody "$CERT_FILE" "$KEY_FILE"
-          chmod 600 "$KEY_FILE"
-        fi
-      '';
+          # Generate cert with SANs if missing or outdated (no SAN support)
+          NEEDS_REGEN=0
+          if [ ! -f "$CERT_FILE" ] || [ ! -f "$KEY_FILE" ]; then
+            NEEDS_REGEN=1
+          elif ! ${pkgs.openssl}/bin/openssl x509 -in "$CERT_FILE" -noout -ext subjectAltName 2>/dev/null | grep -q "DNS:"; then
+            echo "Certificate missing SANs, regenerating..."
+            NEEDS_REGEN=1
+          fi
+
+          if [ "$NEEDS_REGEN" = "1" ]; then
+            ${pkgs.openssl}/bin/openssl req -new -x509 -days 3650 -nodes \
+              -out "$CERT_FILE" \
+              -keyout "$KEY_FILE" \
+              -subj "/CN=${cfg.domain}" \
+              -addext "subjectAltName=DNS:${cfg.domain},DNS:${mucDomain},DNS:localhost,IP:127.0.0.1"
+            chown prosody:prosody "$CERT_FILE" "$KEY_FILE"
+            chmod 600 "$KEY_FILE"
+          fi
+
+          # Symlink certs to /run/prosody/certs for certmanager auto-discovery
+          ln -sf "$CERT_FILE" "$RUN_CERT_DIR/"
+          ln -sf "$KEY_FILE" "$RUN_CERT_DIR/"
+          chown -h prosody:prosody "$RUN_CERT_DIR"/*
+        '';
     };
 
     # Ensure Tailscale is available
