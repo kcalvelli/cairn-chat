@@ -135,9 +135,6 @@ in
     services.prosody = {
       enable = true;
 
-      # Bind to localhost when using Tailscale serve, otherwise bind to Tailscale IP
-      interfaces = if useTailscaleServe then [ "127.0.0.1" ] else [ cfg.tailscaleIP ];
-
       # Admin users
       admins = cfg.admins;
 
@@ -200,6 +197,9 @@ in
 
       # Extra configuration
       extraConfig = ''
+        -- Bind to localhost (Tailscale serve) or Tailscale IP (legacy)
+        interfaces = { "${if useTailscaleServe then "127.0.0.1" else cfg.tailscaleIP}" }
+
         -- Authentication
         authentication = "internal_hashed"
 
