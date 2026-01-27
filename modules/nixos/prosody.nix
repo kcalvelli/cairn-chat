@@ -193,7 +193,7 @@ in
         csi = true;
         cloud_notify = true;
         mam = cfg.messageArchive.enable;
-        posix = true; # Required for proper daemon operation
+        # Note: posix module is handled by NixOS systemd integration
       };
 
       # Extra configuration
