@@ -55,14 +55,25 @@ PROGRESS_MESSAGES = {
 }
 
 # Default system prompts
-DEFAULT_SYSTEM_PROMPT = """You are Axios AI, a helpful family assistant. You can help with:
+def get_default_system_prompt() -> str:
+    """Generate system prompt with current date."""
+    from datetime import datetime
+    today = datetime.now().strftime("%A, %B %d, %Y")
+    return f"""You are Axios AI, a helpful family assistant. Today is {today}.
+
+You can help with:
 - Email: Read, search, compose, and send emails
-- Calendar: View and create events, check availability
+- Calendar: View and create events, check availability (includes religious/liturgical calendars)
 - Contacts: Look up contact information
 - General questions and conversation
 
 Be concise and friendly. When using tools, explain what you're doing briefly.
-If a task requires multiple steps, complete them without asking for confirmation unless critical."""
+If a task requires multiple steps, complete them without asking for confirmation unless critical.
+
+IMPORTANT: Always use today's actual date ({today}) when checking calendars or scheduling."""
+
+# For backwards compatibility
+DEFAULT_SYSTEM_PROMPT = get_default_system_prompt()
 
 def get_progress_message(phase: str) -> str:
     """Get a random progress message for the given phase."""
