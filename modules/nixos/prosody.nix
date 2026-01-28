@@ -144,6 +144,11 @@ in
       # Disable XEP-0423 compliance check (not needed for internal family chat)
       xmppComplianceSuite = false;
 
+      # Disable HTTPS on Prosody's HTTP server — Tailscale provides encryption
+      # This avoids self-signed cert issues when XMPP clients upload files
+      httpsPorts = [ ];
+      httpInterfaces = [ "127.0.0.1" ]; # Accessed via Tailscale Serve
+
       # Admin users
       admins = cfg.admins;
 
@@ -169,9 +174,10 @@ in
       ];
 
       # HTTP file sharing for images, documents, etc.
+      # Note: http_host is set in extraConfig as a global setting (freeform attrs
+      # here would incorrectly prefix it as http_file_share_http_host)
       httpFileShare = mkIf cfg.httpFileShare.enable {
         domain = "upload.${cfg.domain}";
-        http_host = cfg.domain; # Reuse primary domain to avoid extra DNS/certs
         size_limit = cfg.httpFileShare.maxFileSize;
         expires_after = cfg.httpFileShare.expiresAfter;
       };
@@ -222,6 +228,11 @@ in
 
         -- Storage
         storage = "internal"
+
+        ${optionalString cfg.httpFileShare.enable ''
+          -- Use primary domain in upload URLs (upload.* subdomain has no DNS)
+          http_host = "${cfg.domain}"
+        ''}
 
         ${cfg.extraConfig}
       '';
@@ -336,7 +347,8 @@ in
       };
     };
 
-    # Tailscale serve for HTTP file uploads (port 5281 HTTPS)
+    # Tailscale serve for HTTP file uploads (port 5280)
+    # Uses HTTP (not HTTPS) — Tailscale WireGuard tunnel provides encryption
     systemd.services.tailscale-serve-xmpp-upload = mkIf (useTailscaleServe && cfg.httpFileShare.enable) {
       description = "Tailscale Serve for XMPP HTTP File Upload";
       after = [
@@ -366,9 +378,9 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        # Expose Prosody HTTPS port (5281) for file uploads
-        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5281 tcp://127.0.0.1:5281";
-        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5281 off";
+        # Expose Prosody HTTP port (5280) for file uploads via Tailscale
+        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5280 tcp://127.0.0.1:5280";
+        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5280 off";
         Restart = "on-failure";
         RestartSec = "5s";
       };

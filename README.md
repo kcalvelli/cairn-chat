@@ -230,7 +230,7 @@ services.axios-chat.prosody = {
 };
 ```
 
-When `tailscaleServe.enable = true`, port 5281 (HTTPS) is automatically exposed via Tailscale Serve for file uploads.
+When `tailscaleServe.enable = true`, port 5280 (HTTP) is automatically exposed via Tailscale Serve for file uploads. HTTPS is disabled on the upload endpoint since Tailscale provides WireGuard encryption.
 
 ## Cost
 
