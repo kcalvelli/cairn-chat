@@ -232,10 +232,12 @@ def _localize_upload_url(url: str) -> str:
 
     Tailscale Serve terminates TLS on port 5281 and forwards to Prosody
     HTTP on port 5280. The bot runs on the same host, so it downloads
-    directly from Prosody without going through Tailscale Serve.
+    directly from Prosody on localhost without going through Tailscale Serve.
     """
     if ":5281/" in url:
-        return url.replace("https://", "http://").replace(":5281/", ":5280/")
+        # Extract path from URL and rewrite to localhost Prosody HTTP
+        path = url.split(":5281", 1)[1]  # everything after :5281
+        return f"http://127.0.0.1:5280{path}"
     return url
 
 

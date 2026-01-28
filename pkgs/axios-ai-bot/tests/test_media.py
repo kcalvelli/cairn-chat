@@ -196,10 +196,10 @@ class TestUnsupportedTypeMessage:
 class TestLocalizeUploadUrl:
     """Tests for _localize_upload_url."""
 
-    def test_rewrites_https_5281_to_http_5280(self):
+    def test_rewrites_https_5281_to_localhost_5280(self):
         url = "https://chat.example.ts.net:5281/upload/abc123/photo.jpg"
         result = _localize_upload_url(url)
-        assert result == "http://chat.example.ts.net:5280/upload/abc123/photo.jpg"
+        assert result == "http://127.0.0.1:5280/upload/abc123/photo.jpg"
 
     def test_leaves_other_urls_unchanged(self):
         url = "https://example.com/image.jpg"
