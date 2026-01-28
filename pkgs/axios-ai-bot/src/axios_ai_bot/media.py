@@ -227,18 +227,24 @@ def filename_from_url(url: str) -> str:
     return path or "attachment"
 
 
-def _localize_upload_url(url: str) -> str:
+def _localize_upload_url(url: str) -> tuple[str, dict[str, str]]:
     """Rewrite external HTTPS upload URL to local Prosody HTTP.
 
     Tailscale Serve terminates TLS on port 5281 and forwards to Prosody
     HTTP on port 5280. The bot runs on the same host, so it downloads
     directly from Prosody on localhost without going through Tailscale Serve.
+
+    Returns:
+        Tuple of (rewritten_url, extra_headers). The Host header must be
+        preserved so Prosody can route the request to the upload component.
     """
     if ":5281/" in url:
-        # Extract path from URL and rewrite to localhost Prosody HTTP
+        # Extract hostname for Host header (Prosody routes by Host)
+        # URL format: https://hostname:5281/path...
+        hostname = url.split("://", 1)[1].split(":5281", 1)[0]
         path = url.split(":5281", 1)[1]  # everything after :5281
-        return f"http://127.0.0.1:5280{path}"
-    return url
+        return f"http://127.0.0.1:5280{path}", {"Host": hostname}
+    return url, {}
 
 
 async def download_media(url: str, verify_ssl: bool = False) -> MediaAttachment | None:
@@ -251,12 +257,12 @@ async def download_media(url: str, verify_ssl: bool = False) -> MediaAttachment 
     Returns:
         MediaAttachment if successful, None if download fails or unsupported type
     """
-    download_url = _localize_upload_url(url)
+    download_url, extra_headers = _localize_upload_url(url)
     if download_url != url:
         logger.debug(f"Rewrote upload URL for local download: {download_url}")
     try:
         async with httpx.AsyncClient(verify=verify_ssl, timeout=30.0) as client:
-            response = await client.get(download_url)
+            response = await client.get(download_url, headers=extra_headers)
             response.raise_for_status()
 
             # Determine MIME type from Content-Type header first, then URL

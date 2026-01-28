@@ -198,13 +198,18 @@ class TestLocalizeUploadUrl:
 
     def test_rewrites_https_5281_to_localhost_5280(self):
         url = "https://edge.example.ts.net:5281/upload/abc123/photo.jpg"
-        result = _localize_upload_url(url)
-        assert result == "http://127.0.0.1:5280/upload/abc123/photo.jpg"
+        result_url, headers = _localize_upload_url(url)
+        assert result_url == "http://127.0.0.1:5280/upload/abc123/photo.jpg"
+        assert headers == {"Host": "edge.example.ts.net"}
 
     def test_leaves_other_urls_unchanged(self):
         url = "https://example.com/image.jpg"
-        assert _localize_upload_url(url) == url
+        result_url, headers = _localize_upload_url(url)
+        assert result_url == url
+        assert headers == {}
 
     def test_leaves_http_urls_unchanged(self):
         url = "http://localhost:5280/upload/abc123/photo.jpg"
-        assert _localize_upload_url(url) == url
+        result_url, headers = _localize_upload_url(url)
+        assert result_url == url
+        assert headers == {}
