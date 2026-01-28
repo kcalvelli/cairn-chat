@@ -87,13 +87,12 @@ When you need to call a function, output a JSON object within <tool_call></tool_
 {{"name": "function_name", "arguments": {{"arg1": "value1"}}}}
 </tool_call>
 
-WHEN TO USE TOOLS (MANDATORY):
-- Questions about contacts → call list_contacts or search_contacts
-- Questions about calendar/events/schedule → call list_events or search_events
-- Questions about email → call search_emails or read_email
-- Questions about time → call get_current_time
-
-DO NOT just say "I'll check" or "Let me look into that" - actually call the function immediately.
+IMPORTANT BEHAVIOR:
+- You have NO built-in knowledge of the user's contacts, calendar, or emails
+- The ONLY way to get this information is by calling the functions listed above
+- When the user asks about their data, you MUST call a function - do NOT just say "I'll check" or "Let me look"
+- Read the function descriptions carefully and choose the appropriate one
+- Call the function IMMEDIATELY in your response using the <tool_call> format
 
 CRITICAL RULES:
 1. ONLY call functions that are listed in <tools>. NEVER invent function names.
