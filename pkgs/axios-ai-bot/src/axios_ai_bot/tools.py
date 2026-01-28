@@ -20,6 +20,7 @@ SERVER_CATEGORIES: dict[str, str] = {
     "context7": "search",
     "time": "general",
     "sequential-thinking": "general",
+    "journal": "system",
 }
 
 # Tool name patterns that override server category
@@ -87,6 +88,21 @@ CATEGORY_KEYWORDS: dict[str, list[str]] = {
         "find online",
         "google",
         "web search",
+    ],
+    "system": [
+        "log",
+        "logs",
+        "journal",
+        "journalctl",
+        "systemd",
+        "service",
+        "crash",
+        "error",
+        "boot",
+        "startup",
+        "status",
+        "daemon",
+        "unit",
     ],
 }
 
