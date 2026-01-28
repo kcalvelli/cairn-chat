@@ -2,6 +2,7 @@
 
 import logging
 from collections.abc import Awaitable, Callable
+from typing import Any
 
 from .domains import DomainRegistry, get_default_registry
 from .llm import LLMBackend
