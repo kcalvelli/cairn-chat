@@ -194,7 +194,7 @@ class AxiosBot(slixmpp.ClientXMPP):
 
         try:
             if self._server:
-                self.connect((self._server, self._port))
+                self.connect(self._server, self._port)
             else:
                 self.connect()
         except Exception as e:
@@ -217,7 +217,7 @@ class AxiosBot(slixmpp.ClientXMPP):
     async def run(self) -> None:
         """Connect and run the bot."""
         if self._server:
-            self.connect((self._server, self._port))
+            self.connect(self._server, self._port)
         else:
             self.connect()
         await self.disconnected
