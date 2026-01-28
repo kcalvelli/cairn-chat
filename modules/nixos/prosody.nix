@@ -17,6 +17,12 @@ with lib;
 let
   cfg = config.services.axios-chat.prosody;
   useTailscaleServe = cfg.tailscaleServe.enable;
+
+  # Machine's Tailscale FQDN (e.g., "edge.taile0fb4.ts.net").
+  # TLS-terminated TCP only works on the machine's own IP, not service IPs,
+  # so HTTP uploads must use the machine hostname.
+  tailnetDomain = builtins.concatStringsSep "." (builtins.tail (lib.splitString "." cfg.domain));
+  machineFqdn = "${config.networking.hostName}.${tailnetDomain}";
 in
 {
   options.services.axios-chat.prosody = {
@@ -174,10 +180,14 @@ in
       ];
 
       # HTTP file sharing for images, documents, etc.
-      # Note: http_host is set in extraConfig as a global setting (freeform attrs
-      # here would incorrectly prefix it as http_file_share_http_host)
+      # http_host tells Prosody to accept the machine hostname for HTTP routing.
+      # http_external_url tells Prosody to generate HTTPS URLs using that hostname.
+      # This is needed because --tls-terminated-tcp only works on the machine's
+      # own Tailscale IP, not on service IPs.
       httpFileShare = mkIf cfg.httpFileShare.enable {
         domain = "upload.${cfg.domain}";
+        http_host = machineFqdn;
+        http_external_url = "https://${machineFqdn}:5281";
         size_limit = cfg.httpFileShare.maxFileSize;
         expires_after = cfg.httpFileShare.expiresAfter;
       };
@@ -230,9 +240,8 @@ in
         storage = "internal"
 
         ${optionalString cfg.httpFileShare.enable ''
-          -- Expose Prosody HTTP via Tailscale TCP on the chat service.
-          -- Plain HTTP is fine since Tailscale provides WireGuard encryption.
-          http_external_url = "http://${cfg.domain}:5280"
+          -- http_host and http_external_url are set on the httpFileShare component
+          -- (not here) via NixOS module options.
         ''}
 
         ${cfg.extraConfig}
@@ -347,12 +356,13 @@ in
       };
     };
 
-    # Tailscale serve for HTTP file uploads (plain TCP on port 5280)
-    # Uses --tcp on the same service as XMPP C2S so uploads resolve on
-    # chat.<tailnet>.ts.net. Plain HTTP is fine — Tailscale encrypts at
-    # the WireGuard layer.
+    # Tailscale serve for HTTP file uploads (TLS-terminated TCP on port 5281).
+    # Uses the machine's own Tailscale IP (not --service) because
+    # --tls-terminated-tcp doesn't work with service IPs (hairpin routing).
+    # The http_host setting on the upload component tells Prosody to accept
+    # requests with the machine hostname in the Host header.
     systemd.services.tailscale-serve-xmpp-upload = mkIf (useTailscaleServe && cfg.httpFileShare.enable) {
-      description = "Tailscale Serve TCP for XMPP HTTP File Upload";
+      description = "Tailscale Serve TLS for XMPP HTTP File Upload";
       after = [
         "tailscaled.service"
         "prosody.service"
@@ -380,8 +390,8 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5280 tcp://127.0.0.1:5280";
-        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5280 off";
+        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --bg --tls-terminated-tcp=5281 tcp://127.0.0.1:5280";
+        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --tls-terminated-tcp=5281 off";
         Restart = "on-failure";
         RestartSec = "5s";
       };

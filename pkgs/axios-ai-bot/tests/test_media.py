@@ -196,8 +196,8 @@ class TestUnsupportedTypeMessage:
 class TestLocalizeUploadUrl:
     """Tests for _localize_upload_url."""
 
-    def test_rewrites_external_5280_to_localhost(self):
-        url = "http://chat.example.ts.net:5280/upload/abc123/photo.jpg"
+    def test_rewrites_https_5281_to_localhost_5280(self):
+        url = "https://edge.example.ts.net:5281/upload/abc123/photo.jpg"
         result = _localize_upload_url(url)
         assert result == "http://127.0.0.1:5280/upload/abc123/photo.jpg"
 
@@ -205,6 +205,6 @@ class TestLocalizeUploadUrl:
         url = "https://example.com/image.jpg"
         assert _localize_upload_url(url) == url
 
-    def test_leaves_localhost_urls_unchanged(self):
-        url = "http://127.0.0.1:5280/upload/abc123/photo.jpg"
+    def test_leaves_http_urls_unchanged(self):
+        url = "http://localhost:5280/upload/abc123/photo.jpg"
         assert _localize_upload_url(url) == url
