@@ -181,6 +181,10 @@ async def async_main() -> None:
         logger.warning(f"Failed to load tools from mcp-gateway: {e}")
         logger.warning("Bot will continue without tools - check mcp-gateway status")
 
+    # Warm up Ollama model if using Ollama backend
+    if backend == "ollama" and hasattr(llm_client, "warm_up"):
+        await llm_client.warm_up()
+
     # Run the bot
     server_info = ""
     if config["xmpp_server"]:

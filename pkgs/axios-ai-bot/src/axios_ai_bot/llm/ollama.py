@@ -171,6 +171,35 @@ class OllamaClient(LLMBackend):
         """Clear conversation history for a user."""
         self.conversation_history.pop(user_id, None)
 
+    async def warm_up(self) -> bool:
+        """Pre-load the model into memory to avoid cold-start delays.
+
+        Returns:
+            True if warm-up succeeded, False otherwise.
+        """
+        logger.info(f"Warming up model {self.model}...")
+        try:
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                # Send minimal request to load model into memory
+                response = await client.post(
+                    f"{self.base_url}/api/chat",
+                    json={
+                        "model": self.model,
+                        "messages": [{"role": "user", "content": "hi"}],
+                        "stream": False,
+                        "options": {"num_predict": 1},  # Generate minimal tokens
+                    },
+                )
+                if response.status_code == 200:
+                    logger.info(f"Model {self.model} warmed up successfully")
+                    return True
+                else:
+                    logger.warning(f"Model warm-up returned status {response.status_code}")
+                    return False
+        except Exception as e:
+            logger.warning(f"Model warm-up failed: {e}")
+            return False
+
     async def _chat(
         self,
         messages: list[dict[str, Any]],

@@ -36,7 +36,7 @@ class MessageRouter:
         send_message: SendMessageCallback | None = None,
         domain_registry: DomainRegistry | None = None,
         enable_domain_routing: bool = True,
-        router_timeout: float = 10.0,
+        router_timeout: float = 30.0,
     ):
         """Initialize the message router.
 
