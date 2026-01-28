@@ -384,7 +384,7 @@ in
         RemainAfterExit = true;
         # Tailscale terminates TLS on port 5281 with valid *.ts.net cert,
         # forwards decrypted HTTP to Prosody on localhost:5280
-        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --https=5281 http://127.0.0.1:5280";
+        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --bg --https=5281 http://127.0.0.1:5280";
         ExecStop = "${pkgs.tailscale}/bin/tailscale serve --https=5281 off";
         Restart = "on-failure";
         RestartSec = "5s";
