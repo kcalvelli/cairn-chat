@@ -213,7 +213,7 @@ class OllamaClient(LLMBackend):
                 "stream": False,
                 "options": {
                     "temperature": self.temperature,
-                    "num_ctx": 32768,  # Large context for tool definitions
+                    "num_ctx": 16384,  # Enough for tools (~5K tokens) while keeping more layers on GPU
                 },
             }
 
