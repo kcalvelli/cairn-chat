@@ -1,6 +1,7 @@
 """Main entry point for axios-ai-bot."""
 
 import asyncio
+import json
 import logging
 import os
 import signal
@@ -102,6 +103,18 @@ def get_config() -> dict[str, Any]:
     config["xmpp_port"] = int(os.environ.get("XMPP_PORT", "5222"))
     config["xmpp_verify_ssl"] = os.environ.get("XMPP_VERIFY_SSL", "false").lower() == "true"
 
+    # Optional: Per-user configuration (location, timezone)
+    user_config_json = os.environ.get("USER_CONFIG", "")
+    if user_config_json:
+        try:
+            config["user_config"] = json.loads(user_config_json)
+            logger.info(f"Loaded user config for {len(config['user_config'].get('users', {}))} users")
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse USER_CONFIG: {e}")
+            config["user_config"] = {}
+    else:
+        config["user_config"] = {}
+
     return config
 
 
@@ -126,6 +139,7 @@ async def async_main() -> None:
         llm_config = {
             "api_key": config["anthropic_key"],
             "system_prompt": config["system_prompt"] or None,
+            "user_config": config["user_config"],
         }
     elif backend == "ollama":
         llm_config = {
@@ -133,6 +147,7 @@ async def async_main() -> None:
             "model": config["ollama_model"],
             "temperature": config["ollama_temperature"],
             "system_prompt": config["system_prompt"] or None,
+            "user_config": config["user_config"],
         }
         logger.info(f"Ollama URL: {config['ollama_url']}, Model: {config['ollama_model']}")
     else:

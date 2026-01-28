@@ -61,6 +61,7 @@ def create_llm_client(
             api_key=config["api_key"],
             system_prompt=config.get("system_prompt"),
             max_context_messages=config.get("max_context_messages", 10),
+            user_config=config.get("user_config", {}),
         )
     elif backend == "ollama":
         return OllamaClient(
@@ -71,6 +72,7 @@ def create_llm_client(
             temperature=config.get("temperature", 0.2),
             enable_thinking=config.get("enable_thinking", False),
             timeout=config.get("timeout", 120.0),
+            user_config=config.get("user_config", {}),
         )
     else:
         raise ValueError(f"Unknown LLM backend: {backend}. Valid options: anthropic, ollama")

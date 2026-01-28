@@ -15,6 +15,7 @@ from .prompts import (
     get_default_system_prompt,
     get_ollama_system_prompt,
     get_progress_message,
+    get_user_location_context,
 )
 
 logger = logging.getLogger(__name__)
@@ -198,6 +199,7 @@ class OllamaClient(LLMBackend):
         temperature: float = 0.2,
         enable_thinking: bool = False,
         timeout: float = 120.0,
+        user_config: dict | None = None,
     ):
         """Initialize the Ollama client.
 
@@ -209,6 +211,7 @@ class OllamaClient(LLMBackend):
             temperature: Sampling temperature (lower = more deterministic)
             enable_thinking: Whether to enable thinking mode
             timeout: Request timeout in seconds
+            user_config: Per-user configuration (location, timezone)
         """
         self.base_url = base_url.rstrip("/")
         self.model = model
@@ -217,7 +220,23 @@ class OllamaClient(LLMBackend):
         self.temperature = temperature
         self.enable_thinking = enable_thinking
         self.timeout = timeout
+        self.user_config = user_config or {}
         self.conversation_history: dict[str, list[dict[str, Any]]] = {}
+
+    def _get_system_prompt(self, user_id: str) -> str:
+        """Get system prompt with per-user location context.
+
+        Args:
+            user_id: The user's JID
+
+        Returns:
+            System prompt with location context appended if available
+        """
+        base_prompt = self.base_system_prompt or get_ollama_system_prompt()
+        location_context = get_user_location_context(user_id, self.user_config)
+        if location_context:
+            return base_prompt + "\n" + location_context
+        return base_prompt
 
     def _get_history(self, user_id: str) -> list[dict[str, Any]]:
         """Get conversation history for a user."""

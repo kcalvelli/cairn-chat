@@ -16,6 +16,13 @@ let
   cfg = config.services.axios-chat.bot;
   isOllama = cfg.llmBackend == "ollama";
   isAnthropic = cfg.llmBackend == "anthropic";
+
+  # Serialize user config to JSON for the bot
+  userConfigJson = builtins.toJSON {
+    users = cfg.users;
+    defaultLocation = cfg.defaultLocation;
+    defaultTimezone = cfg.defaultTimezone;
+  };
 in
 {
   options.services.axios-chat.bot = {
@@ -147,6 +154,57 @@ in
       default = "INFO";
       description = "Logging level for the bot.";
     };
+
+    # Per-user configuration
+    users = mkOption {
+      type = types.attrsOf (
+        types.submodule {
+          options = {
+            location = mkOption {
+              type = types.str;
+              example = "Raleigh, NC";
+              description = "User's location for local search and weather queries.";
+            };
+            timezone = mkOption {
+              type = types.str;
+              default = "America/New_York";
+              example = "America/New_York";
+              description = "User's timezone (IANA format).";
+            };
+          };
+        }
+      );
+      default = { };
+      example = literalExpression ''
+        {
+          "keith@localhost" = {
+            location = "Raleigh, NC";
+            timezone = "America/New_York";
+          };
+        }
+      '';
+      description = ''
+        Per-user configuration for location-aware responses.
+        Keys are JIDs (e.g., "user@domain").
+      '';
+    };
+
+    # Default location for users not in the users config
+    defaultLocation = mkOption {
+      type = types.str;
+      default = "";
+      example = "New York, NY";
+      description = ''
+        Default location for users not specified in the users config.
+        Leave empty to disable location awareness for unknown users.
+      '';
+    };
+
+    defaultTimezone = mkOption {
+      type = types.str;
+      default = "America/New_York";
+      description = "Default timezone for users not specified in the users config.";
+    };
   };
 
   config = mkIf cfg.enable {
@@ -202,6 +260,9 @@ in
         }
         // optionalAttrs (cfg.systemPromptFile != null) {
           SYSTEM_PROMPT_FILE = cfg.systemPromptFile;
+        }
+        // optionalAttrs (cfg.users != { } || cfg.defaultLocation != "") {
+          USER_CONFIG = userConfigJson;
         };
 
       serviceConfig = {

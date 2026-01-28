@@ -12,6 +12,7 @@ from .prompts import (
     format_domain_list,
     get_default_system_prompt,
     get_progress_message,
+    get_user_location_context,
 )
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,7 @@ class AnthropicClient(LLMBackend):
         api_key: str,
         system_prompt: str | None = None,
         max_context_messages: int = 10,
+        user_config: dict | None = None,
     ):
         """Initialize the Anthropic client.
 
@@ -36,11 +38,27 @@ class AnthropicClient(LLMBackend):
             api_key: Anthropic API key
             system_prompt: Custom system prompt, or None for default
             max_context_messages: Maximum conversation history to maintain
+            user_config: Per-user configuration (location, timezone)
         """
         self.client = Anthropic(api_key=api_key)
-        self.system_prompt = system_prompt or get_default_system_prompt()
+        self.base_system_prompt = system_prompt or get_default_system_prompt()
         self.max_context_messages = max_context_messages
+        self.user_config = user_config or {}
         self.conversation_history: dict[str, list[dict[str, Any]]] = {}
+
+    def _get_system_prompt(self, user_id: str) -> str:
+        """Get system prompt with per-user location context.
+
+        Args:
+            user_id: The user's JID
+
+        Returns:
+            System prompt with location context appended if available
+        """
+        location_context = get_user_location_context(user_id, self.user_config)
+        if location_context:
+            return self.base_system_prompt + "\n" + location_context
+        return self.base_system_prompt
 
     def _get_history(self, user_id: str) -> list[dict[str, Any]]:
         """Get conversation history for a user."""
@@ -95,11 +113,14 @@ class AnthropicClient(LLMBackend):
                     logger.debug(f"Failed to send progress: {e}")
 
         try:
+            # Get per-user system prompt with location context
+            system_prompt = self._get_system_prompt(user_id)
+
             # Initial request
             response = self.client.messages.create(
                 model=SONNET_MODEL,
                 max_tokens=4096,
-                system=self.system_prompt,
+                system=system_prompt,
                 messages=history,
                 tools=tools if tools else None,
             )
@@ -143,7 +164,7 @@ class AnthropicClient(LLMBackend):
                 response = self.client.messages.create(
                     model=SONNET_MODEL,
                     max_tokens=4096,
-                    system=self.system_prompt,
+                    system=system_prompt,
                     messages=history,
                     tools=tools if tools else None,
                 )
@@ -175,10 +196,13 @@ class AnthropicClient(LLMBackend):
         history = self._get_history(user_id)
 
         try:
+            # Get per-user system prompt with location context
+            system_prompt = self._get_system_prompt(user_id)
+
             response = self.client.messages.create(
                 model=HAIKU_MODEL,  # Use Haiku for simple conversation (cheaper)
                 max_tokens=1024,
-                system=self.system_prompt,
+                system=system_prompt,
                 messages=history,
             )
 

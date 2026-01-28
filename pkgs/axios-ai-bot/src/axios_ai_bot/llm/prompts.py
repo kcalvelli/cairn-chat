@@ -54,6 +54,43 @@ def get_current_date() -> str:
     return datetime.now().strftime("%A, %B %d, %Y")
 
 
+def get_user_location_context(
+    user_id: str,
+    user_config: dict,
+) -> str:
+    """Get location context for a specific user.
+
+    Args:
+        user_id: The user's JID (e.g., "keith@localhost")
+        user_config: User configuration dict with 'users', 'defaultLocation', 'defaultTimezone'
+
+    Returns:
+        Location context string to inject into the system prompt, or empty string if no location
+    """
+    users = user_config.get("users", {})
+    default_location = user_config.get("defaultLocation", "")
+    default_timezone = user_config.get("defaultTimezone", "America/New_York")
+
+    # Check for user-specific config (try with and without resource)
+    user_bare = user_id.split("/")[0]  # Remove XMPP resource if present
+    user_data = users.get(user_bare) or users.get(user_id)
+
+    if user_data:
+        location = user_data.get("location", "")
+        timezone = user_data.get("timezone", default_timezone)
+    else:
+        location = default_location
+        timezone = default_timezone
+
+    if not location:
+        return ""
+
+    return f"""
+User's location: {location}
+User's timezone: {timezone}
+Use this location for local searches, weather queries, and "near me" requests."""
+
+
 def get_default_system_prompt() -> str:
     """Generate the default system prompt with current date.
 
