@@ -349,12 +349,11 @@ in
       };
     };
 
-    # Tailscale serve for HTTP file uploads (HTTPS on port 5281)
-    # Tailscale Serve terminates TLS with a valid *.ts.net certificate,
-    # forwarding to Prosody's plain HTTP on localhost:5280.
-    # This gives clients a trusted HTTPS endpoint without self-signed cert issues.
+    # Tailscale serve for HTTP file uploads (TLS-terminated TCP on port 5281)
+    # Uses --tls-terminated-tcp (same Tailscale-level interception as --tcp for XMPP)
+    # with TLS termination using valid *.ts.net cert, forwarding plain HTTP to Prosody.
     systemd.services.tailscale-serve-xmpp-upload = mkIf (useTailscaleServe && cfg.httpFileShare.enable) {
-      description = "Tailscale Serve HTTPS for XMPP HTTP File Upload";
+      description = "Tailscale Serve TLS for XMPP HTTP File Upload";
       after = [
         "tailscaled.service"
         "prosody.service"
@@ -382,10 +381,10 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        # Tailscale terminates TLS on port 5281 with valid *.ts.net cert,
-        # forwards decrypted HTTP to Prosody on localhost:5280
-        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --bg --https=5281 http://127.0.0.1:5280";
-        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --https=5281 off";
+        # TLS-terminated TCP: Tailscale intercepts at WireGuard level (like --tcp),
+        # terminates TLS with valid *.ts.net cert, forwards plain TCP to Prosody HTTP
+        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --tls-terminated-tcp=5281 tcp://127.0.0.1:5280";
+        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --tls-terminated-tcp=5281 off";
         Restart = "on-failure";
         RestartSec = "5s";
       };
