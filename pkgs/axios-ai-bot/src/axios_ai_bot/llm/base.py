@@ -11,8 +11,7 @@ ProgressCallback = Callable[[str], Awaitable[None]]
 class LLMBackend(ABC):
     """Abstract base class for LLM backends.
 
-    All LLM implementations (Anthropic, Ollama, etc.) must inherit from this
-    class and implement the required methods.
+    The AnthropicClient implements this interface for Claude API access.
     """
 
     @abstractmethod

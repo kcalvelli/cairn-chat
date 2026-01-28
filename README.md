@@ -8,7 +8,7 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 - **AI Assistant**: Chat with `@ai` to manage email, calendar, contacts, and more
 - **Native Clients**: Use Conversations (Android), Gajim (Windows/Linux), Dino (Linux), or any XMPP client
 - **Dynamic Tool Discovery**: New MCP servers added to mcp-gateway are automatically available
-- **Flexible LLM Backend**: Choose between Claude API (cloud) or Ollama (local) for AI
+- **Domain Routing**: Haiku classifies intent, Sonnet executes — fast and cost-efficient
 
 ## Architecture
 
@@ -30,7 +30,7 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 │                                 ▼                                       │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │                     axios-ai-bot                                  │  │
-│  │  Router → [Claude API | Ollama] → mcp-gateway → Tools            │  │
+│  │  Router → Claude API (Haiku/Sonnet) → mcp-gateway → Tools        │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -61,29 +61,36 @@ Add to your `flake.nix`:
 }
 ```
 
-### NixOS Configuration (Claude API)
+### NixOS Configuration
 
 ```nix
 { config, ... }:
 
 {
-  # Enable axios-chat with Prosody and the AI bot (Claude backend)
-  services.axios-chat = {
-    prosody = {
-      enable = true;
-      domain = "chat.home.ts.net";  # Your Tailscale domain
-      tailscaleIP = "100.64.0.1";   # Your machine's Tailscale IP
-      admins = [ "admin@chat.home.ts.net" ];
-    };
+  # Enable Prosody XMPP server (Tailnet-only)
+  services.axios-chat.prosody = {
+    enable = true;
+    domain = "chat.home.ts.net";  # Your Tailscale domain
+    tailscaleServe.enable = true;
+    admins = [ "ai@chat.home.ts.net" ];
+  };
 
-    bot = {
-      enable = true;
-      xmppDomain = "chat.home.ts.net";
-      xmppPasswordFile = config.age.secrets.ai-bot-password.path;
-      llmBackend = "anthropic";  # Default
-      claudeApiKeyFile = config.age.secrets.anthropic-key.path;
-      mcpGatewayUrl = "http://localhost:8085";
+  # Enable AI bot (Claude API)
+  services.axios-chat.bot = {
+    enable = true;
+    xmppDomain = "chat.home.ts.net";
+    xmppPasswordFile = config.age.secrets.ai-bot-password.path;
+    claudeApiKeyFile = config.age.secrets.anthropic-key.path;
+    mcpGatewayUrl = "http://localhost:8085";
+
+    # Per-user location for local searches
+    users = {
+      "keith@chat.home.ts.net" = {
+        location = "Raleigh, NC";
+        timezone = "America/New_York";
+      };
     };
+    defaultLocation = "Raleigh, NC";
   };
 
   # Ensure mcp-gateway is running for tool access
@@ -91,58 +98,31 @@ Add to your `flake.nix`:
 }
 ```
 
-### NixOS Configuration (Ollama - Local LLM)
+### With axios Framework
+
+When using [axios](https://github.com/kcalvelli/axios), the module is imported automatically. You only need to configure the wrapper and bot settings:
 
 ```nix
-{ config, ... }:
+# In your host configuration (e.g., edge.nix)
 
-{
-  # Enable Ollama service
-  services.ollama = {
-    enable = true;
-    acceleration = "cuda";  # or "rocm" for AMD, null for CPU
-  };
+# Wrapper: enable chat subsystem and set XMPP password
+services.ai.chat = {
+  enable = true;
+  xmppPasswordFile = "/run/agenix/xmpp-bot-password";
+};
 
-  # Enable axios-chat with Ollama backend
-  services.axios-chat = {
-    prosody = {
-      enable = true;
-      domain = "chat.home.ts.net";
-      tailscaleIP = "100.64.0.1";
-      admins = [ "admin@chat.home.ts.net" ];
-    };
-
-    bot = {
-      enable = true;
-      xmppDomain = "chat.home.ts.net";
-      xmppPasswordFile = config.age.secrets.ai-bot-password.path;
-
-      # Use local Ollama instead of Claude API
-      llmBackend = "ollama";
-      ollamaUrl = "http://localhost:11434";
-      ollamaModel = "qwen3:14b-q4_K_M";
-      ollamaTemperature = 0.2;  # Lower = more deterministic
-
-      mcpGatewayUrl = "http://localhost:8085";
+# Bot: configure Claude API and per-user settings directly
+services.axios-chat.bot = {
+  claudeApiKeyFile = "/run/agenix/claude-api-key";
+  users = {
+    "keith@localhost" = {
+      location = "McAdenville, NC";
+      timezone = "America/New_York";
     };
   };
-
-  services.mcp-gateway.enable = true;
-}
+  defaultLocation = "McAdenville, NC";
+};
 ```
-
-### Ollama Model Setup
-
-Before using the Ollama backend, pull the required model:
-
-```bash
-ollama pull qwen3:14b-q4_K_M
-```
-
-**Recommended models for tool calling:**
-- `qwen3:14b-q4_K_M` - Best balance of quality and speed (~8GB VRAM)
-- `qwen3:32b-q4_K_M` - Higher quality, more resources (~18GB VRAM)
-- `qwen3:8b-q4_K_M` - Faster, less accurate (~5GB VRAM)
 
 ## User Account Setup
 
@@ -203,34 +183,15 @@ AI: Available commands:
     /clear - Clear conversation history
 ```
 
-## Cost Comparison
+## Cost
 
-### Claude API (Cloud)
+Claude API uses domain routing (Haiku for classification, Sonnet for execution) to keep costs low:
 
 | Usage Level | Interactions/Day | Monthly Cost |
 |-------------|------------------|--------------|
 | Light       | 5                | ~$2-4        |
 | Moderate    | 15               | ~$6-10       |
 | Heavy       | 30               | ~$12-20      |
-
-### Ollama (Local)
-
-| Cost Type | Amount |
-|-----------|--------|
-| Monthly API cost | $0 |
-| Electricity | ~$5-15/month if running 24/7 |
-| Hardware | One-time GPU investment |
-
-**Ollama advantages:**
-- No per-request costs
-- Full privacy (data never leaves your network)
-- No rate limits
-- Works offline
-
-**Claude advantages:**
-- No hardware requirements
-- Generally more reliable tool calling
-- Easier setup
 
 ## Related Projects
 
