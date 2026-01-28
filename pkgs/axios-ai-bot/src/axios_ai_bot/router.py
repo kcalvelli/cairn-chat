@@ -1,11 +1,11 @@
-"""Intent router that combines fast keyword matching with LLM classification."""
+"""Message router that sends all tools to Claude for dynamic selection."""
 
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
 from .llm import LLMClient
-from .tools import DynamicToolRegistry, classify_intent_fast
+from .tools import DynamicToolRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -29,28 +29,25 @@ LOCAL_COMMANDS: dict[str, str] = {
 }
 
 
-class IntentRouter:
-    """Routes messages to appropriate handlers based on intent."""
+class MessageRouter:
+    """Routes messages to Claude with all available tools."""
 
     def __init__(
         self,
         tool_registry: DynamicToolRegistry,
         llm_client: LLMClient,
         send_message: SendMessageCallback | None = None,
-        use_haiku_classification: bool = True,
     ):
-        """Initialize the intent router.
+        """Initialize the message router.
 
         Args:
             tool_registry: Dynamic tool registry for tool access
-            llm_client: LLM client for classification and execution
+            llm_client: LLM client for execution
             send_message: Optional callback to send XMPP messages (for progress updates)
-            use_haiku_classification: Whether to use Haiku for ambiguous cases
         """
         self.tool_registry = tool_registry
         self.llm_client = llm_client
         self.send_message = send_message
-        self.use_haiku_classification = use_haiku_classification
 
     async def handle_message(self, user_jid: str, message: str) -> str:
         """Route a message and generate a response.
@@ -68,28 +65,17 @@ class IntentRouter:
         if message.startswith("/"):
             return await self._handle_command(user_jid, message)
 
-        # Fast keyword-based classification
-        categories = classify_intent_fast(message)
-
-        # If no keywords matched, use LLM classification (if enabled)
-        if not categories and self.use_haiku_classification:
-            categories = await self.llm_client.classify_intent(message)
-
-        # If still no categories or just "general", use simple response
-        if not categories or categories == ["general"]:
-            return await self.llm_client.simple_response(user_jid, message)
-
-        # Get tools for the detected categories
-        tools = self.tool_registry.get_tools_for_categories(categories)
+        # Get all available tools - let Claude decide which to use based on descriptions
+        tools = self.tool_registry.get_all_tools()
 
         if not tools:
-            # No tools available for these categories
-            logger.warning(f"No tools for categories {categories}, falling back to simple response")
+            # No tools available, use simple response
+            logger.info("No tools available, using simple response")
             return await self.llm_client.simple_response(user_jid, message)
 
         # Format tools for Claude and execute
         formatted_tools = self.tool_registry.format_tools_for_claude(tools)
-        logger.info(f"Using {len(formatted_tools)} tools for categories: {categories}")
+        logger.info(f"Using all {len(formatted_tools)} available tools")
 
         # Create progress callback if we have a send_message function
         progress_callback = None
@@ -125,22 +111,26 @@ class IntentRouter:
         if cmd == "/refresh":
             try:
                 count = await self.tool_registry.refresh()
-                categories = self.tool_registry.get_categories()
-                cat_list = ", ".join(categories)
-                return f"Refreshed {count} tools in {len(categories)} categories: {cat_list}"
+                return f"Refreshed {count} tools from mcp-gateway"
             except Exception as e:
                 return f"Failed to refresh tools: {e}"
 
         if cmd == "/tools":
-            categories = self.tool_registry.get_categories()
             tools = self.tool_registry.get_all_tools()
             if not tools:
                 return "No tools available. Is mcp-gateway running?"
 
-            lines = ["Available tool categories:"]
-            for cat in sorted(categories):
-                cat_tools = self.tool_registry.tool_categories.get(cat, [])
-                lines.append(f"  {cat}: {len(cat_tools)} tools")
+            # Group by server
+            by_server: dict[str, list[str]] = {}
+            for tool in tools:
+                server = tool.get("server", "unknown")
+                name = tool["name"].split("__")[-1]  # Get original name
+                by_server.setdefault(server, []).append(name)
+
+            lines = [f"Available tools ({len(tools)} total):"]
+            for server in sorted(by_server.keys()):
+                tool_names = ", ".join(sorted(by_server[server]))
+                lines.append(f"  {server}: {tool_names}")
             return "\n".join(lines)
 
         if cmd == "/clear":
@@ -165,7 +155,7 @@ def create_message_handler(
     Returns:
         Async message handler function
     """
-    router = IntentRouter(tool_registry, llm_client, send_message=send_message)
+    router = MessageRouter(tool_registry, llm_client, send_message=send_message)
 
     async def handler(from_jid: str, to_jid: str, body: str) -> str | None:
         """Handle an incoming message."""
