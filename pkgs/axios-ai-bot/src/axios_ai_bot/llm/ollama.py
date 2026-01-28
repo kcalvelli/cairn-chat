@@ -213,6 +213,7 @@ class OllamaClient(LLMBackend):
                 "stream": False,
                 "options": {
                     "temperature": self.temperature,
+                    "num_ctx": 32768,  # Large context for tool definitions
                 },
             }
 
