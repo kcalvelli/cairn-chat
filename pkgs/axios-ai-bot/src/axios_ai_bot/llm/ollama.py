@@ -339,9 +339,17 @@ class OllamaClient(LLMBackend):
                         if is_valid:
                             logger.info(f"Executing tool: {tool_name} with args: {tool_args}")
                             result = await tool_executor(tool_name, tool_args)
-                            # Log result size for debugging large responses
                             result_str = json.dumps(result)
-                            logger.info(f"Tool {tool_name} result size: {len(result_str)} bytes")
+                            original_size = len(result_str)
+
+                            # Truncate large results to avoid overwhelming the model
+                            max_result_size = 8000  # ~8KB limit
+                            if original_size > max_result_size:
+                                result_str = result_str[:max_result_size] + "\n... [truncated, showing first 8KB of " + str(original_size) + " bytes]"
+                                logger.warning(f"Tool {tool_name} result truncated: {original_size} -> {len(result_str)} bytes")
+                            else:
+                                logger.info(f"Tool {tool_name} result size: {original_size} bytes")
+
                             tool_results.append(
                                 {"name": tool_name, "content": result_str}
                             )
