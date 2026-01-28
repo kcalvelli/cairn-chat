@@ -83,13 +83,19 @@ in
       };
     };
 
-    uploadHttp = {
-      enable = mkEnableOption "HTTP file upload for sharing files";
+    httpFileShare = {
+      enable = mkEnableOption "HTTP file sharing (images, documents) via mod_http_file_share";
 
       maxFileSize = mkOption {
         type = types.int;
         default = 10485760; # 10 MB
-        description = "Maximum file size for HTTP uploads in bytes.";
+        description = "Maximum file size for uploads in bytes.";
+      };
+
+      expiresAfter = mkOption {
+        type = types.str;
+        default = "1 week";
+        description = "How long uploaded files are kept before deletion (e.g., '1 week', '30 days').";
       };
     };
 
@@ -162,10 +168,12 @@ in
         }
       ];
 
-      # HTTP upload for file sharing
-      uploadHttp = mkIf cfg.uploadHttp.enable {
+      # HTTP file sharing for images, documents, etc.
+      httpFileShare = mkIf cfg.httpFileShare.enable {
         domain = "upload.${cfg.domain}";
-        uploadFileSizeLimit = toString cfg.uploadHttp.maxFileSize;
+        http_host = cfg.domain; # Reuse primary domain to avoid extra DNS/certs
+        size_limit = cfg.httpFileShare.maxFileSize;
+        expires_after = cfg.httpFileShare.expiresAfter;
       };
 
       # Require encryption for client connections
@@ -234,6 +242,10 @@ in
       script =
         let
           mucDomain = if cfg.muc.domain != "" then cfg.muc.domain else "muc.${cfg.domain}";
+          uploadDomain = "upload.${cfg.domain}";
+          # Include upload domain in SANs when httpFileShare is enabled
+          sanList = "DNS:${cfg.domain},DNS:${mucDomain},DNS:localhost,IP:127.0.0.1"
+            + optionalString cfg.httpFileShare.enable ",DNS:${uploadDomain}";
         in
         ''
           CERT_DIR="/var/lib/prosody"
@@ -251,6 +263,11 @@ in
           elif ! ${pkgs.openssl}/bin/openssl x509 -in "$CERT_FILE" -noout -ext subjectAltName 2>/dev/null | grep -q "DNS:"; then
             echo "Certificate missing SANs, regenerating..."
             NEEDS_REGEN=1
+          ${optionalString cfg.httpFileShare.enable ''
+          elif ! ${pkgs.openssl}/bin/openssl x509 -in "$CERT_FILE" -noout -ext subjectAltName 2>/dev/null | grep -q "${uploadDomain}"; then
+            echo "Certificate missing upload domain SAN, regenerating..."
+            NEEDS_REGEN=1
+          ''}
           fi
 
           if [ "$NEEDS_REGEN" = "1" ]; then
@@ -258,7 +275,7 @@ in
               -out "$CERT_FILE" \
               -keyout "$KEY_FILE" \
               -subj "/CN=${cfg.domain}" \
-              -addext "subjectAltName=DNS:${cfg.domain},DNS:${mucDomain},DNS:localhost,IP:127.0.0.1"
+              -addext "subjectAltName=${sanList}"
             chown prosody:prosody "$CERT_FILE" "$KEY_FILE"
             chmod 600 "$KEY_FILE"
           fi
@@ -314,6 +331,44 @@ in
         # Expose XMPP c2s port (5222) via Tailscale serve
         ExecStart = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5222 tcp://127.0.0.1:5222";
         ExecStop = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5222 off";
+        Restart = "on-failure";
+        RestartSec = "5s";
+      };
+    };
+
+    # Tailscale serve for HTTP file uploads (port 5281 HTTPS)
+    systemd.services.tailscale-serve-xmpp-upload = mkIf (useTailscaleServe && cfg.httpFileShare.enable) {
+      description = "Tailscale Serve for XMPP HTTP File Upload";
+      after = [
+        "tailscaled.service"
+        "prosody.service"
+        "tailscale-serve-xmpp.service"
+        "network-online.target"
+      ];
+      wants = [
+        "tailscaled.service"
+        "network-online.target"
+      ];
+      wantedBy = [ "multi-user.target" ];
+
+      # Wait for Tailscale to be fully ready
+      preStart = ''
+        for i in $(seq 1 30); do
+          status=$(${pkgs.tailscale}/bin/tailscale status --json 2>/dev/null | ${pkgs.jq}/bin/jq -r '.BackendState // "NoState"')
+          if [ "$status" = "Running" ]; then
+            break
+          fi
+          echo "Waiting for Tailscale to be ready (attempt $i/30, state: $status)..."
+          sleep 2
+        done
+      '';
+
+      serviceConfig = {
+        Type = "oneshot";
+        RemainAfterExit = true;
+        # Expose Prosody HTTPS port (5281) for file uploads
+        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5281 tcp://127.0.0.1:5281";
+        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5281 off";
         Restart = "on-failure";
         RestartSec = "5s";
       };
