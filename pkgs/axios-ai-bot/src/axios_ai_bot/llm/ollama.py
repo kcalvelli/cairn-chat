@@ -313,16 +313,22 @@ class OllamaClient(LLMBackend):
                             logger.warning(f"Invalid tool call: {error}")
                             tool_results.append({"name": tool_name, "content": f"Error: {error}"})
 
-                    # Add to conversation
-                    messages.append({"role": "assistant", "content": response_text})
-                    for tr in tool_results:
-                        messages.append(
-                            {
-                                "role": "tool",
-                                "content": f"<tool_response>\n{tr['content']}\n</tool_response>",
-                            }
-                        )
+                    # Add to conversation for next Ollama call
+                    # For native tool calling, include the tool_calls in the assistant message
+                    messages.append({
+                        "role": "assistant",
+                        "content": response_text,
+                        "tool_calls": native_tool_calls,
+                    })
 
+                    # Add tool results - Ollama expects role: "tool" with content
+                    for i, tr in enumerate(tool_results):
+                        messages.append({
+                            "role": "tool",
+                            "content": tr["content"],
+                        })
+
+                    logger.info(f"Added {len(tool_results)} tool results, continuing loop...")
                     continue
 
                 # Check for Hermes-style tool calls in response text
