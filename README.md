@@ -6,6 +6,7 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 
 - **Private Family Messenger**: Like AIM, but only accessible within your Tailscale network
 - **AI Assistant**: Chat with `@ai` to manage email, calendar, contacts, and more
+- **Media Support**: Send images and PDFs — the AI can describe, analyze, and answer questions about them
 - **Native Clients**: Use Conversations (Android), Gajim (Windows/Linux), Dino (Linux), or any XMPP client
 - **Dynamic Tool Discovery**: New MCP servers added to mcp-gateway are automatically available
 - **Domain Routing**: Haiku classifies intent, Sonnet executes — fast and cost-efficient
@@ -24,7 +25,7 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 │                                 ▼                                       │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │                    Prosody XMPP Server                            │  │
-│  │               (Tailscale interface only)                          │  │
+│  │          (Tailscale interface only + HTTP File Share)             │  │
 │  └──────────────────────────────┬───────────────────────────────────┘  │
 │                                 │                                       │
 │                                 ▼                                       │
@@ -73,6 +74,7 @@ Add to your `flake.nix`:
     domain = "chat.home.ts.net";  # Your Tailscale domain
     tailscaleServe.enable = true;
     admins = [ "ai@chat.home.ts.net" ];
+    httpFileShare.enable = true;  # Enable image/document sharing (XEP-0363)
   };
 
   # Enable AI bot (Claude API)
@@ -182,6 +184,53 @@ AI: Available commands:
     /tools - List available tool categories
     /clear - Clear conversation history
 ```
+
+## Media Support
+
+Send images and documents directly in your XMPP chat — the AI bot will analyze them:
+
+```
+You: [sends a photo of a plant]
+AI: That's a Monstera deliciosa (Swiss Cheese Plant). It's a tropical plant
+    native to Central America, popular as a houseplant for its distinctive
+    split leaves.
+
+You: [sends a PDF invoice] How much was the total?
+AI: The invoice total is $247.50. It includes 3 line items:
+    - Web hosting (annual): $120.00
+    - Domain renewal: $15.00
+    - SSL certificate: $112.50
+```
+
+### Supported Media Types
+
+| Type | Formats | Max Size |
+|------|---------|----------|
+| Images | JPEG, PNG, GIF, WebP | 3.75 MB |
+| Documents | PDF | 32 MB |
+
+### How It Works
+
+1. Your XMPP client uploads the file via HTTP File Upload (XEP-0363)
+2. The bot detects the media URL (via OOB element or body URL)
+3. It downloads and sends the file to Claude as a multimodal content block
+4. Claude analyzes the image/document and responds
+
+### HTTP File Share Configuration
+
+The Prosody module includes HTTP file sharing options:
+
+```nix
+services.axios-chat.prosody = {
+  httpFileShare = {
+    enable = true;
+    maxFileSize = 10485760;    # 10 MB (default)
+    expiresAfter = "1 week";   # Auto-delete uploaded files (default)
+  };
+};
+```
+
+When `tailscaleServe.enable = true`, port 5281 (HTTPS) is automatically exposed via Tailscale Serve for file uploads.
 
 ## Cost
 

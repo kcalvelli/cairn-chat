@@ -6,6 +6,7 @@ from typing import Any
 from anthropic import Anthropic
 
 from ..domains import DomainRegistry
+from ..media import UserMessage
 from .base import LLMBackend, ProgressCallback
 from .prompts import (
     build_router_prompt,
@@ -66,8 +67,16 @@ class AnthropicClient(LLMBackend):
             self.conversation_history[user_id] = []
         return self.conversation_history[user_id]
 
-    def _add_to_history(self, user_id: str, role: str, content: str) -> None:
-        """Add a message to conversation history."""
+    def _add_to_history(
+        self, user_id: str, role: str, content: str | list[dict[str, Any]]
+    ) -> None:
+        """Add a message to conversation history.
+
+        Args:
+            user_id: The user's ID
+            role: Message role ("user" or "assistant")
+            content: Message content - string for text, list for multimodal content blocks
+        """
         history = self._get_history(user_id)
         history.append({"role": role, "content": content})
 
@@ -83,7 +92,7 @@ class AnthropicClient(LLMBackend):
     async def execute_with_tools(
         self,
         user_id: str,
-        message: str,
+        message: UserMessage,
         tools: list[dict[str, Any]],
         tool_executor: Any,  # Callable for executing tools
         progress_callback: ProgressCallback | None = None,
@@ -92,7 +101,7 @@ class AnthropicClient(LLMBackend):
 
         Args:
             user_id: The user's ID for conversation tracking
-            message: The user's message
+            message: The user's message (text and optional media attachments)
             tools: List of available tools in Claude format
             tool_executor: Async callable that takes (tool_name, arguments) and returns result
             progress_callback: Optional async callback for progress updates
@@ -100,8 +109,11 @@ class AnthropicClient(LLMBackend):
         Returns:
             The assistant's final response text
         """
+        # Convert UserMessage to Claude content format
+        claude_content = message.to_claude_content()
+
         # Add user message to history
-        self._add_to_history(user_id, "user", message)
+        self._add_to_history(user_id, "user", claude_content)
         history = self._get_history(user_id)
 
         async def send_progress(phase: str) -> None:
@@ -182,25 +194,31 @@ class AnthropicClient(LLMBackend):
             logger.error(f"LLM execution failed: {e}")
             return f"I'm sorry, I encountered an error: {e}"
 
-    async def simple_response(self, user_id: str, message: str) -> str:
+    async def simple_response(self, user_id: str, message: UserMessage) -> str:
         """Generate a simple response without tools (for general conversation).
 
         Args:
             user_id: The user's ID for conversation tracking
-            message: The user's message
+            message: The user's message (text and optional media attachments)
 
         Returns:
             The assistant's response text
         """
-        self._add_to_history(user_id, "user", message)
+        # Convert UserMessage to Claude content format
+        claude_content = message.to_claude_content()
+
+        self._add_to_history(user_id, "user", claude_content)
         history = self._get_history(user_id)
 
         try:
             # Get per-user system prompt with location context
             system_prompt = self._get_system_prompt(user_id)
 
+            # Use Sonnet for multimodal (images need vision), Haiku for text-only
+            model = SONNET_MODEL if message.has_attachments else HAIKU_MODEL
+
             response = self.client.messages.create(
-                model=HAIKU_MODEL,  # Use Haiku for simple conversation (cheaper)
+                model=model,
                 max_tokens=1024,
                 system=system_prompt,
                 messages=history,
@@ -224,7 +242,7 @@ class AnthropicClient(LLMBackend):
         """Classify user message into domains using Haiku (fast, cheap).
 
         Args:
-            message: The user's message to classify
+            message: The user's message text to classify
             registry: Domain registry with available domains
 
         Returns:
@@ -266,7 +284,7 @@ class AnthropicClient(LLMBackend):
     async def execute_with_routing(
         self,
         user_id: str,
-        message: str,
+        message: UserMessage,
         all_tools: list[dict[str, Any]],
         tool_executor: Any,
         registry: DomainRegistry,
@@ -278,7 +296,7 @@ class AnthropicClient(LLMBackend):
 
         Args:
             user_id: The user's ID for conversation tracking
-            message: The user's message
+            message: The user's message (text and optional media attachments)
             all_tools: Full list of available tools
             tool_executor: Async callable for tool execution
             registry: Domain registry for routing
@@ -287,8 +305,8 @@ class AnthropicClient(LLMBackend):
         Returns:
             The assistant's final response text
         """
-        # Step 1: Classify intent with Haiku
-        domains = await self.classify_intent(message, registry)
+        # Step 1: Classify intent with Haiku (text-only for classification)
+        domains = await self.classify_intent(message.text, registry)
         logger.info(f"Routed to domains: {domains}")
 
         # Step 2: Check if this is general (no tools needed)

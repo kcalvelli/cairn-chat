@@ -5,6 +5,7 @@ from collections.abc import Awaitable, Callable
 
 from .domains import DomainRegistry, get_default_registry
 from .llm import LLMBackend
+from .media import UserMessage
 from .tools import DynamicToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -50,21 +51,20 @@ class MessageRouter:
         self.domain_registry = domain_registry or get_default_registry()
         self.enable_domain_routing = enable_domain_routing
 
-    async def handle_message(self, user_jid: str, message: str) -> str:
+    async def handle_message(self, user_jid: str, message: UserMessage) -> str:
         """Route a message and generate a response.
 
         Args:
             user_jid: The user's JID
-            message: The user's message
+            message: The user's message (text and optional media attachments)
 
         Returns:
             The response to send back
         """
-        message = message.strip()
-
-        # Handle local commands
-        if message.startswith("/"):
-            return await self._handle_command(user_jid, message)
+        # Handle local commands (text-only, no media)
+        text = message.text.strip()
+        if text.startswith("/") and not message.has_attachments:
+            return await self._handle_command(user_jid, text)
 
         # Get all available tools - let the LLM decide which to use based on descriptions
         tools = self.tool_registry.get_all_tools()
@@ -172,8 +172,8 @@ def create_message_handler(
     """
     router = MessageRouter(tool_registry, llm_client, send_message=send_message)
 
-    async def handler(from_jid: str, to_jid: str, body: str) -> str | None:
+    async def handler(from_jid: str, to_jid: str, message: UserMessage) -> str | None:
         """Handle an incoming message."""
-        return await router.handle_message(from_jid, body)
+        return await router.handle_message(from_jid, message)
 
     return handler

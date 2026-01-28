@@ -12,6 +12,8 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 - NixOS modules for declarative configuration
 - Standalone Nix flake consumable by axios and other projects
 - Claude API with domain routing (Haiku classifies, Sonnet executes)
+- Media support: images (JPEG, PNG, GIF, WebP) and documents (PDF) via XEP-0363 HTTP File Upload
+- Multimodal Claude integration for image/document analysis
 
 ## Non-Goals
 
@@ -52,6 +54,7 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 - NixOS modules in `modules/nixos/`
 - Python package in `pkgs/axios-ai-bot/`
 - LLM backend in `pkgs/axios-ai-bot/src/axios_ai_bot/llm/`
+- Media handling in `pkgs/axios-ai-bot/src/axios_ai_bot/media.py`
 
 ### Testing Strategy
 

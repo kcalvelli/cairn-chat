@@ -9,10 +9,19 @@ from typing import Any
 import slixmpp
 from slixmpp.exceptions import IqError, IqTimeout
 
+from .media import (
+    UserMessage,
+    detect_media_url,
+    download_media,
+    get_caption,
+    mime_type_from_url,
+    unsupported_type_message,
+)
+
 logger = logging.getLogger(__name__)
 
-# Type alias for message handler
-MessageHandler = Callable[[str, str, str], Coroutine[Any, Any, str | None]]
+# Type alias for message handler - now accepts UserMessage instead of raw body
+MessageHandler = Callable[[str, str, "UserMessage"], Coroutine[Any, Any, str | None]]
 
 
 class AxiosBot(slixmpp.ClientXMPP):
@@ -34,7 +43,7 @@ class AxiosBot(slixmpp.ClientXMPP):
             jid: The bot's JID (e.g., ai@chat.example.ts.net)
             password: The bot's XMPP password
             message_handler: Async callback for handling messages.
-                Takes (from_jid, to_jid, body) and returns optional response.
+                Takes (from_jid, to_jid, UserMessage) and returns optional response.
             server: XMPP server hostname (defaults to domain from JID)
             port: XMPP server port (default 5222)
             use_tls: Whether to use TLS (default True)
@@ -60,6 +69,7 @@ class AxiosBot(slixmpp.ClientXMPP):
 
         # Register plugins
         self.register_plugin("xep_0030")  # Service Discovery
+        self.register_plugin("xep_0066")  # Out-of-Band Data (media URLs)
         self.register_plugin("xep_0199")  # XMPP Ping
         self.register_plugin("xep_0085")  # Chat State Notifications
 
@@ -81,7 +91,7 @@ class AxiosBot(slixmpp.ClientXMPP):
         logger.info(f"XMPP session started as {self.boundjid.bare}")
 
     async def _on_message(self, msg: slixmpp.Message) -> None:
-        """Handle incoming messages."""
+        """Handle incoming messages, including media attachments."""
         # Only handle chat messages (not groupchat, error, etc.)
         if msg["type"] not in ("chat", "normal"):
             return
@@ -98,7 +108,38 @@ class AxiosBot(slixmpp.ClientXMPP):
         from_jid = msg["from"].bare
         to_jid = msg["to"].bare
 
-        logger.info(f"Message from {from_jid}: {body[:50]}...")
+        # Check for media URL (OOB element or body URL)
+        media_url = detect_media_url(msg)
+
+        if media_url:
+            logger.info(f"Media message from {from_jid}: {media_url}")
+
+            # Check if it's a supported type before downloading
+            guessed_mime = mime_type_from_url(media_url)
+            if guessed_mime is None and not media_url.lower().endswith(
+                (".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf")
+            ):
+                # URL doesn't look like a supported file type
+                # We'll still try to download and check Content-Type
+                pass
+
+            # Download the media
+            attachment = await download_media(media_url)
+
+            if attachment:
+                caption = get_caption(msg, media_url)
+                user_message = UserMessage(text=caption, attachments=[attachment])
+            else:
+                # Download failed or unsupported type - send error message
+                self.send_message(
+                    mto=from_jid,
+                    mbody=unsupported_type_message(media_url),
+                    mtype="chat",
+                )
+                return
+        else:
+            logger.info(f"Message from {from_jid}: {body[:50]}...")
+            user_message = UserMessage(text=body)
 
         # Handle the message
         if self.message_handler:
@@ -107,7 +148,7 @@ class AxiosBot(slixmpp.ClientXMPP):
                 self._send_chat_state(from_jid, "composing")
 
                 # Process the message
-                response = await self.message_handler(from_jid, to_jid, body)
+                response = await self.message_handler(from_jid, to_jid, user_message)
 
                 # Send response if any
                 if response:
