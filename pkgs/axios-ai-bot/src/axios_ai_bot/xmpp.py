@@ -61,6 +61,12 @@ class AxiosBot(slixmpp.ClientXMPP):
         self._port = port
         self._use_tls = use_tls
 
+        # Disable direct TLS — Prosody uses STARTTLS on port 5222, not
+        # immediate TLS.  Attempting direct TLS first causes a failed
+        # handshake that can corrupt the SSL session cache and break the
+        # subsequent STARTTLS attempt.
+        self.enable_direct_tls = False
+
         # Configure SSL context for self-signed certificates
         if not verify_ssl:
             self.ssl_context = ssl.create_default_context()
