@@ -286,6 +286,10 @@ class OllamaClient(LLMBackend):
                 response = await self._chat(messages, system_prompt)
                 response_text = response.get("message", {}).get("content", "")
 
+                logger.info(f"Ollama response keys: {list(response.keys())}")
+                logger.info(f"Response text length: {len(response_text)}")
+                logger.info(f"Response text preview: {response_text[:500] if response_text else 'EMPTY'}")
+
                 # Check for native tool calls first (Ollama's tool_calls field)
                 native_tool_calls = response.get("message", {}).get("tool_calls", [])
 
