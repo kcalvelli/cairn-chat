@@ -337,10 +337,13 @@ class OllamaClient(LLMBackend):
                         )
 
                         if is_valid:
-                            logger.info(f"Executing tool: {tool_name}")
+                            logger.info(f"Executing tool: {tool_name} with args: {tool_args}")
                             result = await tool_executor(tool_name, tool_args)
+                            # Log result size for debugging large responses
+                            result_str = json.dumps(result)
+                            logger.info(f"Tool {tool_name} result size: {len(result_str)} bytes")
                             tool_results.append(
-                                {"name": tool_name, "content": json.dumps(result)}
+                                {"name": tool_name, "content": result_str}
                             )
                         else:
                             logger.warning(f"Invalid tool call: {error}")
