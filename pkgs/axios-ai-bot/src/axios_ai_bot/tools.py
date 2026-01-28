@@ -2,109 +2,11 @@
 
 import asyncio
 import logging
-from collections import defaultdict
 from typing import Any
 
 import httpx
 
 logger = logging.getLogger(__name__)
-
-# Category mappings inferred from server names
-SERVER_CATEGORIES: dict[str, str] = {
-    "axios-ai-mail": "email",
-    "mcp-dav": "calendar",
-    "git": "code",
-    "github": "code",
-    "filesystem": "files",
-    "brave-search": "search",
-    "context7": "search",
-    "time": "general",
-    "sequential-thinking": "general",
-    "journal": "system",
-}
-
-# Tool name patterns that override server category
-TOOL_NAME_CATEGORIES: dict[str, str] = {
-    "contact": "contacts",  # Any tool with "contact" in name -> contacts category
-    "search": "search",
-}
-
-# Keywords for fast intent classification
-CATEGORY_KEYWORDS: dict[str, list[str]] = {
-    "email": [
-        "email",
-        "mail",
-        "send",
-        "inbox",
-        "message to",
-        "reply",
-        "draft",
-        "unread",
-    ],
-    "calendar": [
-        "calendar",
-        "schedule",
-        "meeting",
-        "appointment",
-        "event",
-        "busy",
-        "free",
-        "tomorrow",
-        "today",
-        "next week",
-    ],
-    "contacts": [
-        "contact",
-        "contacts",
-        "phone number",
-        "address",
-        "email address",
-        "who is",
-        "find person",
-        "look up person",
-        "named",  # "anyone named John"
-    ],
-    "code": [
-        "git",
-        "commit",
-        "branch",
-        "pull request",
-        "pr",
-        "push",
-        "repository",
-        "repo",
-    ],
-    "files": [
-        "file",
-        "folder",
-        "directory",
-        "read",
-        "write",
-        "create file",
-    ],
-    "search": [
-        "search",
-        "look up",
-        "find online",
-        "google",
-        "web search",
-    ],
-    "system": [
-        "log",
-        "logs",
-        "journal",
-        "journalctl",
-        "systemd",
-        "service",
-        "crash",
-        "error",
-        "boot",
-        "startup",
-        "status",
-        "daemon",
-        "unit",
-    ],
-}
 
 
 class DynamicToolRegistry:
@@ -120,7 +22,6 @@ class DynamicToolRegistry:
         self.gateway_url = gateway_url.rstrip("/")
         self.refresh_interval = refresh_interval
         self.tools: list[dict[str, Any]] = []
-        self.tool_categories: dict[str, list[str]] = defaultdict(list)
         self.tool_map: dict[str, tuple[str, str]] = {}  # tool_name -> (server_id, original_name)
         self._refresh_task: asyncio.Task[None] | None = None
         self._last_refresh: float = 0
@@ -154,7 +55,7 @@ class DynamicToolRegistry:
                 logger.warning(f"Failed to refresh tools: {e}")
 
     async def refresh(self) -> int:
-        """Fetch tools from mcp-gateway and categorize them.
+        """Fetch tools from mcp-gateway.
 
         Returns:
             Number of tools discovered
@@ -191,7 +92,6 @@ class DynamicToolRegistry:
             raise
 
         self.tools = []
-        self.tool_categories = defaultdict(list)
         self.tool_map = {}
 
         # Process tools with their schemas
@@ -202,9 +102,6 @@ class DynamicToolRegistry:
             server_id = tool.get("server_id", tool_list[i].get("server_id", "unknown"))
             original_name = tool.get("name", tool_list[i]["name"])
             tool_name = f"{server_id}__{original_name}"
-
-            # Infer category from tool name patterns first, then server
-            category = self._infer_category_from_name(original_name, server_id)
 
             # Get input schema, ensuring it has required 'type' field for Claude
             input_schema = tool.get("input_schema") or tool.get("inputSchema") or {}
@@ -217,62 +114,18 @@ class DynamicToolRegistry:
                     "name": tool_name,
                     "description": tool.get("description", ""),
                     "input_schema": input_schema,
-                    "category": category,
                     "server": server_id,
                 }
             )
-            self.tool_categories[category].append(tool_name)
             self.tool_map[tool_name] = (server_id, original_name)
 
         self._last_refresh = asyncio.get_event_loop().time()
         logger.info(f"Refreshed {len(self.tools)} tools from mcp-gateway")
         return len(self.tools)
 
-    def _infer_category_from_name(self, tool_name: str, server_id: str) -> str:
-        """Infer category from tool name patterns, falling back to server ID.
-
-        Args:
-            tool_name: The original tool name (e.g., 'search_contacts')
-            server_id: The server ID (e.g., 'mcp-dav')
-
-        Returns:
-            The inferred category
-        """
-        tool_name_lower = tool_name.lower()
-
-        # Check tool name patterns first
-        for pattern, category in TOOL_NAME_CATEGORIES.items():
-            if pattern in tool_name_lower:
-                return category
-
-        # Fall back to server-based category
-        return SERVER_CATEGORIES.get(server_id, "other")
-
-    def _infer_category(self, server_id: str) -> str:
-        """Infer category from server ID."""
-        return SERVER_CATEGORIES.get(server_id, "other")
-
-    def get_tools_for_categories(self, categories: list[str]) -> list[dict[str, Any]]:
-        """Return only tools matching the given categories.
-
-        Args:
-            categories: List of category names to filter by
-
-        Returns:
-            List of tool definitions for the specified categories
-        """
-        names: set[str] = set()
-        for cat in categories:
-            names.update(self.tool_categories.get(cat, []))
-        return [t for t in self.tools if t["name"] in names]
-
     def get_all_tools(self) -> list[dict[str, Any]]:
         """Return all available tools."""
         return self.tools
-
-    def get_categories(self) -> list[str]:
-        """Return list of available categories."""
-        return list(self.tool_categories.keys())
 
     def format_tools_for_claude(
         self, tools: list[dict[str, Any]] | None = None
@@ -323,22 +176,3 @@ class DynamicToolRegistry:
         except httpx.HTTPError as e:
             logger.error(f"Failed to execute tool {tool_name}: {e}")
             return {"error": f"Tool execution failed: {e}"}
-
-
-def classify_intent_fast(message: str) -> list[str]:
-    """Fast keyword-based intent classification.
-
-    Args:
-        message: The user message to classify
-
-    Returns:
-        List of detected categories, empty if no match
-    """
-    message_lower = message.lower()
-    detected: list[str] = []
-
-    for category, keywords in CATEGORY_KEYWORDS.items():
-        if any(kw in message_lower for kw in keywords):
-            detected.append(category)
-
-    return detected

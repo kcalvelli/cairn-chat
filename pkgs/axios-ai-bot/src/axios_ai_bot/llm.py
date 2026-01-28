@@ -81,30 +81,8 @@ def get_progress_message(phase: str) -> str:
     return random.choice(messages)
 
 
-CLASSIFIER_PROMPT = """Classify the user's intent into one or more categories.
-
-Categories:
-- email: Anything about reading, sending, or managing emails
-- calendar: Events, schedules, meetings, appointments
-- contacts: Looking up people, phone numbers, addresses
-- code: Git operations, repositories, pull requests
-- files: Reading or writing files
-- search: Web searches, looking things up online
-- general: Greetings, thanks, general questions, or unclear intent
-
-Respond with ONLY the category names, comma-separated. If multiple apply, list all.
-If it's just conversation (hi, thanks, etc.), respond with: general
-
-Example inputs and outputs:
-"What's on my calendar tomorrow?" -> calendar
-"Send an email to John about the meeting" -> email,calendar
-"Hi there!" -> general
-"Search for the best restaurants nearby" -> search
-"""
-
-
 class LLMClient:
-    """Claude API client with Haiku routing and Sonnet execution."""
+    """Claude API client for tool execution."""
 
     def __init__(
         self,
@@ -143,34 +121,6 @@ class LLMClient:
     def clear_history(self, user_jid: str) -> None:
         """Clear conversation history for a user."""
         self.conversation_history.pop(user_jid, None)
-
-    async def classify_intent(self, message: str) -> list[str]:
-        """Classify user intent using Haiku (fast, cheap).
-
-        Args:
-            message: The user message to classify
-
-        Returns:
-            List of detected categories
-        """
-        try:
-            response = self.client.messages.create(
-                model=HAIKU_MODEL,
-                max_tokens=50,
-                system=CLASSIFIER_PROMPT,
-                messages=[{"role": "user", "content": message}],
-            )
-
-            # Parse the response
-            result_text = response.content[0].text.strip().lower()
-            categories = [c.strip() for c in result_text.split(",") if c.strip()]
-
-            logger.debug(f"Intent classification: '{message}' -> {categories}")
-            return categories
-
-        except Exception as e:
-            logger.error(f"Intent classification failed: {e}")
-            return ["general"]
 
     async def execute_with_tools(
         self,
