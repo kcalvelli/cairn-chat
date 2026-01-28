@@ -230,8 +230,10 @@ in
         storage = "internal"
 
         ${optionalString cfg.httpFileShare.enable ''
-          -- Use primary domain in upload URLs (upload.* subdomain has no DNS)
-          http_host = "${cfg.domain}"
+          -- Tailscale Serve terminates TLS on port 5281 with a valid *.ts.net cert,
+          -- forwarding to Prosody HTTP on localhost:5280. Advertise HTTPS URLs so
+          -- clients don't reject uploads as insecure.
+          http_external_url = "https://${cfg.domain}:5281"
         ''}
 
         ${cfg.extraConfig}
@@ -347,10 +349,12 @@ in
       };
     };
 
-    # Tailscale serve for HTTP file uploads (port 5280)
-    # Uses HTTP (not HTTPS) — Tailscale WireGuard tunnel provides encryption
+    # Tailscale serve for HTTP file uploads (HTTPS on port 5281)
+    # Tailscale Serve terminates TLS with a valid *.ts.net certificate,
+    # forwarding to Prosody's plain HTTP on localhost:5280.
+    # This gives clients a trusted HTTPS endpoint without self-signed cert issues.
     systemd.services.tailscale-serve-xmpp-upload = mkIf (useTailscaleServe && cfg.httpFileShare.enable) {
-      description = "Tailscale Serve for XMPP HTTP File Upload";
+      description = "Tailscale Serve HTTPS for XMPP HTTP File Upload";
       after = [
         "tailscaled.service"
         "prosody.service"
@@ -378,9 +382,10 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        # Expose Prosody HTTP port (5280) for file uploads via Tailscale
-        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5280 tcp://127.0.0.1:5280";
-        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5280 off";
+        # Tailscale terminates TLS on port 5281 with valid *.ts.net cert,
+        # forwards decrypted HTTP to Prosody on localhost:5280
+        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --https=5281 http://127.0.0.1:5280";
+        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --https=5281 off";
         Restart = "on-failure";
         RestartSec = "5s";
       };

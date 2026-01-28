@@ -230,7 +230,7 @@ services.axios-chat.prosody = {
 };
 ```
 
-When `tailscaleServe.enable = true`, port 5280 (HTTP) is automatically exposed via Tailscale Serve for file uploads. HTTPS is disabled on the upload endpoint since Tailscale provides WireGuard encryption.
+When `tailscaleServe.enable = true`, Tailscale Serve provides HTTPS on port 5281 with a valid `*.ts.net` certificate for file uploads. Prosody serves plain HTTP internally; Tailscale handles TLS termination.
 
 ## Cost
 
