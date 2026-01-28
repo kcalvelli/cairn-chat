@@ -6,7 +6,6 @@ from typing import Any
 
 from .domains import DomainRegistry, get_default_registry
 from .llm import LLMBackend
-from .llm.ollama import OllamaClient
 from .tools import DynamicToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -90,19 +89,24 @@ class MessageRouter:
                 await self.send_message(user_jid, msg)
 
         # Use domain routing if enabled and client supports it
-        if self.enable_domain_routing and isinstance(self.llm_client, OllamaClient):
+        if self.enable_domain_routing and hasattr(self.llm_client, "execute_with_routing"):
             logger.info(f"Using domain routing with {len(formatted_tools)} total tools")
-            return await self.llm_client.execute_with_routing(
-                user_id=user_jid,
-                message=message,
-                all_tools=formatted_tools,
-                tool_executor=self.tool_registry.execute_tool,
-                registry=self.domain_registry,
-                progress_callback=progress_callback,
-                router_timeout=self.router_timeout,
-            )
+            # Build kwargs - Ollama needs router_timeout, Claude doesn't
+            routing_kwargs: dict[str, Any] = {
+                "user_id": user_jid,
+                "message": message,
+                "all_tools": formatted_tools,
+                "tool_executor": self.tool_registry.execute_tool,
+                "registry": self.domain_registry,
+                "progress_callback": progress_callback,
+            }
+            # Add timeout for Ollama (it accepts router_timeout parameter)
+            if "Ollama" in type(self.llm_client).__name__:
+                routing_kwargs["router_timeout"] = self.router_timeout
 
-        # Fallback: Send all tools to LLM (for Claude or when routing disabled)
+            return await self.llm_client.execute_with_routing(**routing_kwargs)
+
+        # Fallback: Send all tools to LLM (when routing disabled or not supported)
         logger.info(f"Using all {len(formatted_tools)} available tools (no routing)")
         return await self.llm_client.execute_with_tools(
             user_id=user_jid,

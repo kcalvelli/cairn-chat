@@ -5,8 +5,14 @@ from typing import Any
 
 from anthropic import Anthropic
 
+from ..domains import DomainRegistry
 from .base import LLMBackend, ProgressCallback
-from .prompts import get_default_system_prompt, get_progress_message
+from .prompts import (
+    build_router_prompt,
+    format_domain_list,
+    get_default_system_prompt,
+    get_progress_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -185,3 +191,100 @@ class AnthropicClient(LLMBackend):
         except Exception as e:
             logger.error(f"Simple response failed: {e}")
             return f"I'm sorry, I encountered an error: {e}"
+
+    async def classify_intent(
+        self,
+        message: str,
+        registry: DomainRegistry,
+    ) -> list[str]:
+        """Classify user message into domains using Haiku (fast, cheap).
+
+        Args:
+            message: The user's message to classify
+            registry: Domain registry with available domains
+
+        Returns:
+            List of domain names. Falls back to ["general"] on error.
+        """
+        # Build router prompt
+        sorted_domains = registry.get_sorted_domains()
+        domain_list = format_domain_list(sorted_domains)
+        prompt = build_router_prompt(message, domain_list)
+
+        try:
+            response = self.client.messages.create(
+                model=HAIKU_MODEL,  # Use Haiku for fast, cheap classification
+                max_tokens=50,  # Domain names only
+                system="You are a request classifier. Output only domain names, comma-separated. No explanation.",
+                messages=[{"role": "user", "content": prompt}],
+            )
+
+            # Extract text response
+            text_blocks = [block.text for block in response.content if hasattr(block, "text")]
+            raw_response = "".join(text_blocks).strip()
+            logger.info(f"Router classification raw: {raw_response}")
+
+            # Parse domains
+            domains = [d.strip().lower() for d in raw_response.split(",")]
+            valid_domains = [d for d in domains if d in registry.domains]
+
+            if valid_domains:
+                logger.info(f"Classified domains: {valid_domains}")
+                return valid_domains
+
+            logger.warning(f"No valid domains in response: {raw_response}")
+            return ["general"]
+
+        except Exception as e:
+            logger.error(f"Intent classification failed: {e}")
+            return ["general"]
+
+    async def execute_with_routing(
+        self,
+        user_id: str,
+        message: str,
+        all_tools: list[dict[str, Any]],
+        tool_executor: Any,
+        registry: DomainRegistry,
+        progress_callback: ProgressCallback | None = None,
+    ) -> str:
+        """Execute with domain-based routing for efficiency.
+
+        Uses Haiku for classification, then Sonnet with filtered tools.
+
+        Args:
+            user_id: The user's ID for conversation tracking
+            message: The user's message
+            all_tools: Full list of available tools
+            tool_executor: Async callable for tool execution
+            registry: Domain registry for routing
+            progress_callback: Optional async callback for progress updates
+
+        Returns:
+            The assistant's final response text
+        """
+        # Step 1: Classify intent with Haiku
+        domains = await self.classify_intent(message, registry)
+        logger.info(f"Routed to domains: {domains}")
+
+        # Step 2: Check if this is general (no tools needed)
+        if "general" in domains and len(domains) == 1:
+            logger.info("General domain - using simple response (no tools)")
+            return await self.simple_response(user_id, message)
+
+        # Step 3: Filter tools by domains
+        filtered_tools = registry.get_tools_for_domains(domains, all_tools)
+        logger.info(f"Filtered to {len(filtered_tools)} tools (from {len(all_tools)})")
+
+        if not filtered_tools:
+            logger.info("No tools after filtering - using simple response")
+            return await self.simple_response(user_id, message)
+
+        # Step 4: Execute with filtered tools using Sonnet
+        return await self.execute_with_tools(
+            user_id=user_id,
+            message=message,
+            tools=filtered_tools,
+            tool_executor=tool_executor,
+            progress_callback=progress_callback,
+        )
