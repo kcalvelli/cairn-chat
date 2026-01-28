@@ -101,7 +101,9 @@ class DynamicToolRegistry:
 
             server_id = tool.get("server_id", tool_list[i].get("server_id", "unknown"))
             original_name = tool.get("name", tool_list[i]["name"])
-            tool_name = f"{server_id}__{original_name}"
+            # Sanitize tool name for Claude API (only allows [a-zA-Z0-9_-])
+            safe_name = original_name.replace(".", "_").replace(" ", "_")
+            tool_name = f"{server_id}__{safe_name}"
 
             # Get input schema, ensuring it has required 'type' field for Claude
             input_schema = tool.get("input_schema") or tool.get("inputSchema") or {}
