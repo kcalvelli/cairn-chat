@@ -239,11 +239,6 @@ in
         -- Storage
         storage = "internal"
 
-        ${optionalString cfg.httpFileShare.enable ''
-          -- http_host and http_external_url are set on the httpFileShare component
-          -- (not here) via NixOS module options.
-        ''}
-
         ${cfg.extraConfig}
       '';
     };

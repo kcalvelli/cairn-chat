@@ -213,11 +213,3 @@ class AxiosBot(slixmpp.ClientXMPP):
             handler: Async callback for handling messages
         """
         self.message_handler = handler
-
-    async def run(self) -> None:
-        """Connect and run the bot."""
-        if self._server:
-            self.connect(self._server, self._port)
-        else:
-            self.connect()
-        await self.disconnected
