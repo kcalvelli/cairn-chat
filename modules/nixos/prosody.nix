@@ -86,6 +86,18 @@ in
     httpFileShare = {
       enable = mkEnableOption "HTTP file sharing (images, documents) via mod_http_file_share";
 
+      uploadHostname = mkOption {
+        type = types.str;
+        default = "${config.networking.hostName}.${builtins.concatStringsSep "." (builtins.tail (lib.splitString "." cfg.domain))}";
+        description = ''
+          Hostname for HTTP upload URLs. Defaults to the machine's Tailscale FQDN
+          derived from networking.hostName and the tailnet domain suffix.
+
+          Tailscale's --tls-terminated-tcp only works on the machine's own IP,
+          not on service IPs, so uploads must use the machine hostname.
+        '';
+      };
+
       maxFileSize = mkOption {
         type = types.int;
         default = 10485760; # 10 MB
@@ -231,9 +243,10 @@ in
 
         ${optionalString cfg.httpFileShare.enable ''
           -- Tailscale Serve terminates TLS on port 5281 with a valid *.ts.net cert,
-          -- forwarding to Prosody HTTP on localhost:5280. Advertise HTTPS URLs so
-          -- clients don't reject uploads as insecure.
-          http_external_url = "https://${cfg.domain}:5281"
+          -- forwarding to Prosody HTTP on localhost:5280. Uses the machine hostname
+          -- (not the XMPP service hostname) because --tls-terminated-tcp only works
+          -- on the machine's own Tailscale IP.
+          http_external_url = "https://${cfg.httpFileShare.uploadHostname}:5281"
         ''}
 
         ${cfg.extraConfig}
@@ -380,11 +393,11 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        # TLS-terminated TCP: Tailscale intercepts at WireGuard level (like --tcp),
-        # terminates TLS with valid *.ts.net cert, forwards plain TCP to Prosody HTTP.
-        # Uses same --service as XMPP C2S so uploads resolve on chat.<tailnet>.ts.net
-        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --bg --tls-terminated-tcp=5281 tcp://127.0.0.1:5280";
-        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tls-terminated-tcp=5281 off";
+        # TLS-terminated TCP on machine's own Tailscale IP (not the service IP).
+        # --tls-terminated-tcp doesn't work with --service because service IPs
+        # have hairpin routing issues. Uses machine hostname instead.
+        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --bg --tls-terminated-tcp=5281 tcp://127.0.0.1:5280";
+        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --tls-terminated-tcp=5281 off";
         Restart = "on-failure";
         RestartSec = "5s";
       };
