@@ -28,6 +28,75 @@ TOOL_CALL_PATTERN = re.compile(
 # Maximum retries for tool call validation failures
 MAX_TOOL_RETRIES = 3
 
+# Maximum size for tool results before truncation
+MAX_TOOL_RESULT_SIZE = 12000  # ~12KB to allow for more content
+
+
+def extract_mcp_content(result: dict[str, Any]) -> tuple[str, int | None]:
+    """Extract actual content from MCP gateway response wrapper.
+
+    MCP responses have format: {"success": true, "result": [{"type": "text", "text": "..."}]}
+    This extracts just the text content to save context space.
+
+    Args:
+        result: The raw MCP gateway response
+
+    Returns:
+        Tuple of (extracted_content, total_item_count or None)
+    """
+    if not isinstance(result, dict):
+        return json.dumps(result), None
+
+    # Check for MCP wrapper format
+    if result.get("success") and "result" in result:
+        mcp_result = result["result"]
+        if isinstance(mcp_result, list) and len(mcp_result) > 0:
+            first_item = mcp_result[0]
+            if isinstance(first_item, dict) and first_item.get("type") == "text":
+                text_content = first_item.get("text", "")
+                # Try to count items if it's a JSON array
+                try:
+                    parsed = json.loads(text_content)
+                    if isinstance(parsed, list):
+                        return text_content, len(parsed)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+                return text_content, None
+
+    # Not MCP format, return as-is
+    return json.dumps(result), None
+
+
+def truncate_result(content: str, max_size: int, total_items: int | None = None) -> tuple[str, bool]:
+    """Truncate content intelligently, preserving JSON structure where possible.
+
+    Args:
+        content: The content to potentially truncate
+        max_size: Maximum allowed size in bytes
+        total_items: Total number of items if known (for informative message)
+
+    Returns:
+        Tuple of (content, was_truncated)
+    """
+    if len(content) <= max_size:
+        return content, False
+
+    # Try to truncate at a JSON array boundary for cleaner results
+    truncated = content[:max_size]
+
+    # Count how many complete items we have
+    items_shown = truncated.count('"uid"')  # Rough heuristic for contacts
+    if items_shown == 0:
+        items_shown = truncated.count('"id"')  # Try generic id field
+
+    # Build informative truncation message
+    if total_items and items_shown > 0:
+        msg = f"\n\n[TRUNCATED: Showing approximately {items_shown} of {total_items} total items. Ask user to be more specific or search for particular items.]"
+    else:
+        msg = f"\n\n[TRUNCATED: Result too large ({len(content)} bytes). Only partial data shown. Ask user to search for specific items instead of listing all.]"
+
+    return truncated + msg, True
+
 
 def parse_tool_calls(response: str) -> list[dict[str, Any]]:
     """Extract and validate tool calls from model response.
@@ -339,19 +408,26 @@ class OllamaClient(LLMBackend):
                         if is_valid:
                             logger.info(f"Executing tool: {tool_name} with args: {tool_args}")
                             result = await tool_executor(tool_name, tool_args)
-                            result_str = json.dumps(result)
-                            original_size = len(result_str)
 
-                            # Truncate large results to avoid overwhelming the model
-                            max_result_size = 8000  # ~8KB limit
-                            if original_size > max_result_size:
-                                result_str = result_str[:max_result_size] + "\n... [truncated, showing first 8KB of " + str(original_size) + " bytes]"
-                                logger.warning(f"Tool {tool_name} result truncated: {original_size} -> {len(result_str)} bytes")
+                            # Extract content from MCP wrapper to save context space
+                            content, total_items = extract_mcp_content(result)
+                            original_size = len(content)
+
+                            # Truncate if needed with informative message
+                            content, was_truncated = truncate_result(
+                                content, MAX_TOOL_RESULT_SIZE, total_items
+                            )
+
+                            if was_truncated:
+                                logger.warning(
+                                    f"Tool {tool_name} result truncated: {original_size} -> {len(content)} bytes"
+                                    + (f" ({total_items} total items)" if total_items else "")
+                                )
                             else:
                                 logger.info(f"Tool {tool_name} result size: {original_size} bytes")
 
                             tool_results.append(
-                                {"name": tool_name, "content": result_str}
+                                {"name": tool_name, "content": content}
                             )
                         else:
                             logger.warning(f"Invalid tool call: {error}")
