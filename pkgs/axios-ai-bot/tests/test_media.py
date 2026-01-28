@@ -8,6 +8,7 @@ from axios_ai_bot.media import (
     EXTENSION_MIME_MAP,
     MediaAttachment,
     UserMessage,
+    _localize_upload_url,
     filename_from_url,
     mime_type_from_content_type,
     mime_type_from_url,
@@ -190,3 +191,20 @@ class TestUnsupportedTypeMessage:
         """Test message for URL without extension."""
         msg = unsupported_type_message("https://example.com/file")
         assert "this type of" in msg
+
+
+class TestLocalizeUploadUrl:
+    """Tests for _localize_upload_url."""
+
+    def test_rewrites_https_5281_to_http_5280(self):
+        url = "https://chat.example.ts.net:5281/upload/abc123/photo.jpg"
+        result = _localize_upload_url(url)
+        assert result == "http://chat.example.ts.net:5280/upload/abc123/photo.jpg"
+
+    def test_leaves_other_urls_unchanged(self):
+        url = "https://example.com/image.jpg"
+        assert _localize_upload_url(url) == url
+
+    def test_leaves_http_urls_unchanged(self):
+        url = "http://localhost:5280/upload/abc123/photo.jpg"
+        assert _localize_upload_url(url) == url
