@@ -175,8 +175,7 @@ async def async_main() -> None:
         server_info = f" via {config['xmpp_server']}:{config['xmpp_port']}"
     logger.info(f"Connecting as {config['xmpp_jid']}{server_info}...")
     if config["xmpp_server"]:
-        # Use positional argument for address tuple (slixmpp compatibility)
-        bot.connect((config["xmpp_server"], config["xmpp_port"]))
+        bot.connect(config["xmpp_server"], config["xmpp_port"])
     else:
         bot.connect()
 
