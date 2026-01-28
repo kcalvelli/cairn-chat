@@ -64,26 +64,16 @@ def get_config() -> dict[str, Any]:
             sys.exit(1)
         config["xmpp_password"] = xmpp_password
 
-    # LLM Backend selection (anthropic or ollama)
-    config["llm_backend"] = os.environ.get("LLM_BACKEND", "anthropic")
-
-    # Anthropic API key (required if backend is anthropic)
-    if config["llm_backend"] == "anthropic":
-        anthropic_key_file = os.environ.get("ANTHROPIC_API_KEY_FILE")
-        if anthropic_key_file:
-            config["anthropic_key"] = load_secret(anthropic_key_file)
-        else:
-            anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-            if not anthropic_key:
-                logger.error("ANTHROPIC_API_KEY or ANTHROPIC_API_KEY_FILE is required for anthropic backend")
-                sys.exit(1)
-            config["anthropic_key"] = anthropic_key
-
-    # Ollama configuration (used if backend is ollama)
-    if config["llm_backend"] == "ollama":
-        config["ollama_url"] = os.environ.get("OLLAMA_URL", "http://localhost:11434")
-        config["ollama_model"] = os.environ.get("OLLAMA_MODEL", "qwen3:14b-q4_K_M")
-        config["ollama_temperature"] = float(os.environ.get("OLLAMA_TEMPERATURE", "0.2"))
+    # Anthropic API key (required)
+    anthropic_key_file = os.environ.get("ANTHROPIC_API_KEY_FILE")
+    if anthropic_key_file:
+        config["anthropic_key"] = load_secret(anthropic_key_file)
+    else:
+        anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+        if not anthropic_key:
+            logger.error("ANTHROPIC_API_KEY or ANTHROPIC_API_KEY_FILE is required")
+            sys.exit(1)
+        config["anthropic_key"] = anthropic_key
 
     # Optional: mcp-gateway URL
     config["mcp_gateway_url"] = os.environ.get("MCP_GATEWAY_URL", "http://localhost:8085")
@@ -131,30 +121,13 @@ async def async_main() -> None:
         refresh_interval=int(config["tool_refresh_interval"]),
     )
 
-    # Create LLM client based on backend selection
-    backend = config["llm_backend"]
-    logger.info(f"Using LLM backend: {backend}")
-
-    if backend == "anthropic":
-        llm_config = {
-            "api_key": config["anthropic_key"],
-            "system_prompt": config["system_prompt"] or None,
-            "user_config": config["user_config"],
-        }
-    elif backend == "ollama":
-        llm_config = {
-            "base_url": config["ollama_url"],
-            "model": config["ollama_model"],
-            "temperature": config["ollama_temperature"],
-            "system_prompt": config["system_prompt"] or None,
-            "user_config": config["user_config"],
-        }
-        logger.info(f"Ollama URL: {config['ollama_url']}, Model: {config['ollama_model']}")
-    else:
-        logger.error(f"Unknown LLM backend: {backend}")
-        sys.exit(1)
-
-    llm_client = create_llm_client(backend, llm_config)
+    # Create LLM client (Anthropic Claude)
+    llm_config = {
+        "api_key": config["anthropic_key"],
+        "system_prompt": config["system_prompt"] or None,
+        "user_config": config["user_config"],
+    }
+    llm_client = create_llm_client(llm_config)
 
     # Create XMPP bot first (without handler)
     bot = AxiosBot(
@@ -195,10 +168,6 @@ async def async_main() -> None:
     except Exception as e:
         logger.warning(f"Failed to load tools from mcp-gateway: {e}")
         logger.warning("Bot will continue without tools - check mcp-gateway status")
-
-    # Warm up Ollama model if using Ollama backend
-    if backend == "ollama" and hasattr(llm_client, "warm_up"):
-        await llm_client.warm_up()
 
     # Run the bot
     server_info = ""
