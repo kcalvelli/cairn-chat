@@ -381,9 +381,10 @@ in
         Type = "oneshot";
         RemainAfterExit = true;
         # TLS-terminated TCP: Tailscale intercepts at WireGuard level (like --tcp),
-        # terminates TLS with valid *.ts.net cert, forwards plain TCP to Prosody HTTP
-        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --bg --tls-terminated-tcp=5281 tcp://127.0.0.1:5280";
-        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --tls-terminated-tcp=5281 off";
+        # terminates TLS with valid *.ts.net cert, forwards plain TCP to Prosody HTTP.
+        # Uses same --service as XMPP C2S so uploads resolve on chat.<tailnet>.ts.net
+        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --bg --tls-terminated-tcp=5281 tcp://127.0.0.1:5280";
+        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tls-terminated-tcp=5281 off";
         Restart = "on-failure";
         RestartSec = "5s";
       };
