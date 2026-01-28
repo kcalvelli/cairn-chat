@@ -11,28 +11,32 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 - Dynamic tool discovery from mcp-gateway
 - NixOS and home-manager modules for declarative configuration
 - Standalone Nix flake consumable by axios and other projects
+- Support for both cloud (Claude API) and local (Ollama) LLM backends
 
 ## Non-Goals
 
 - Public internet exposure (Tailscale provides network security)
 - Application-level authentication (Tailscale provides identity)
 - Web UI / PWA interface (use existing XMPP clients)
-- Running local LLMs (use Claude API for reliable tool calling)
 - Federation with external XMPP servers
+- Model fine-tuning or training
 
 ## Architecture Principles
 
 1. **Flake-First**: Standalone flake that exports NixOS and home-manager modules
 2. **Tailscale-Only Security**: Bind to Tailscale interface, no external access
 3. **Dynamic Tool Discovery**: Query mcp-gateway for available tools at runtime
-4. **Cost-Optimized LLM Usage**: Intent classification with Haiku, execution with Sonnet
+4. **Backend Flexibility**: Support both Anthropic Claude and local Ollama backends
 5. **Loose Coupling**: Runtime configuration for mcp-gateway URL, not build-time dependency
+6. **Anti-Hallucination**: Multi-layer validation for tool calls to prevent errors
 
 ## Tech Stack
 
 - **XMPP Server**: Prosody (via NixOS services.prosody)
 - **Bot Framework**: Python with slixmpp (async XMPP library)
-- **LLM Integration**: Anthropic Claude API (Haiku + Sonnet)
+- **LLM Integration**:
+  - Anthropic Claude API (Haiku + Sonnet) - cloud option
+  - Ollama with Qwen3 (Hermes-style tool calling) - local option
 - **Tool Gateway**: mcp-gateway (runtime dependency via HTTP)
 - **Deployment**: Nix flake with NixOS + home-manager modules
 - **Secret Management**: Integration with agenix/sops-nix
@@ -50,12 +54,14 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 - NixOS modules in `modules/nixos/`
 - Home-manager modules in `modules/home-manager/`
 - Python package in `pkgs/axios-ai-bot/`
+- LLM backends in `pkgs/axios-ai-bot/src/axios_ai_bot/llm/`
 
 ### Testing Strategy
 
 - `openspec validate` for architectural changes
 - pytest for Python bot logic
 - Integration tests with mock XMPP server
+- Unit tests for tool parsing and validation
 
 ## Related Projects
 
@@ -66,6 +72,7 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 
 ## External Dependencies
 
-- Anthropic API key (for Claude access)
+- Anthropic API key (for Claude access) OR Ollama server running locally
 - mcp-gateway running on the network
 - Tailscale for network access control
+- For Ollama: qwen3:14b-q4_K_M model pulled

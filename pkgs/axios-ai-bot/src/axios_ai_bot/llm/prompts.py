@@ -1,0 +1,138 @@
+"""System prompts and templates for LLM backends."""
+
+import json
+import random
+from datetime import datetime
+
+# Witty progress messages organized by phase (shared across backends)
+PROGRESS_MESSAGES = {
+    "thinking": [
+        "Let me think about this...",
+        "Processing your request...",
+        "Hmm, interesting question...",
+        "Looking into it...",
+        "On it!",
+    ],
+    "tool_start": [
+        "Firing up the tools...",
+        "Rolling up my sleeves...",
+        "Getting to work...",
+        "Found what I need, executing...",
+        "Launching operation...",
+    ],
+    "tool_working": [
+        "Still working on it...",
+        "Making progress...",
+        "Crunching the data...",
+        "Juggling some tasks here...",
+        "Almost there...",
+    ],
+    "multi_step": [
+        "This needs a few steps, hang tight...",
+        "Multi-step operation in progress...",
+        "Chaining some actions together...",
+        "Performing a little orchestration...",
+    ],
+    "slow_response": [
+        "Thinking hard about this one...",
+        "Taking a bit longer than usual...",
+        "Navigating some heavy traffic...",
+        "Still here, just being thorough!",
+        "Patience, grasshopper...",
+    ],
+}
+
+
+def get_progress_message(phase: str) -> str:
+    """Get a random progress message for the given phase."""
+    messages = PROGRESS_MESSAGES.get(phase, PROGRESS_MESSAGES["thinking"])
+    return random.choice(messages)
+
+
+def get_current_date() -> str:
+    """Get the current date formatted for prompts."""
+    return datetime.now().strftime("%A, %B %d, %Y")
+
+
+def get_default_system_prompt() -> str:
+    """Generate the default system prompt with current date.
+
+    This is the base prompt used when no custom prompt is provided.
+    Backend-specific additions (like tool instructions) are added separately.
+    """
+    today = get_current_date()
+    return f"""You are Axios AI, a helpful family assistant. Today is {today}.
+
+You can help with:
+- Email: Read, search, compose, and send emails
+- Calendar: View and create events, check availability (includes religious/liturgical calendars)
+- Contacts: Look up contact information
+- General questions and conversation
+
+Be concise and friendly. When using tools, explain what you're doing briefly.
+If a task requires multiple steps, complete them without asking for confirmation unless critical.
+
+IMPORTANT: Always use today's actual date ({today}) when checking calendars or scheduling."""
+
+
+# Hermes-style tool calling template for Qwen3 and similar models
+HERMES_TOOL_SYSTEM_TEMPLATE = """You are a function calling AI assistant. You are provided with function signatures within <tools></tools> XML tags.
+
+You may call one or more functions to assist with the user query. Don't make assumptions about what values to plug into functions.
+
+<tools>
+{tools_json}
+</tools>
+
+For each function call, return a JSON object with function name and arguments within <tool_call></tool_call> XML tags:
+<tool_call>
+{{"name": "function_name", "arguments": {{"arg1": "value1"}}}}
+</tool_call>
+
+CRITICAL RULES:
+1. ONLY call functions that are listed in <tools>. NEVER invent function names.
+2. ONLY use argument names that appear in the function's parameters. NEVER add extra arguments.
+3. If you cannot complete a task with the available functions, say so - do NOT hallucinate a function.
+4. If a required argument value is unknown, ask the user - do NOT guess or make up values.
+5. Always validate your function call matches the schema before outputting it.
+
+{base_prompt}
+
+/nothink"""
+
+
+def get_hermes_tool_prompt(tools: list[dict], base_prompt: str | None = None) -> str:
+    """Generate a Hermes-style tool calling system prompt.
+
+    Args:
+        tools: List of tool definitions to include
+        base_prompt: Optional base prompt to include (defaults to get_default_system_prompt())
+
+    Returns:
+        Complete system prompt with tool definitions
+    """
+    if base_prompt is None:
+        base_prompt = get_default_system_prompt()
+
+    # Format tools as JSON for the prompt
+    tools_json = json.dumps(tools, indent=2)
+
+    return HERMES_TOOL_SYSTEM_TEMPLATE.format(
+        tools_json=tools_json,
+        base_prompt=base_prompt,
+    )
+
+
+def get_ollama_system_prompt(base_prompt: str | None = None) -> str:
+    """Generate the system prompt for Ollama without tools.
+
+    Args:
+        base_prompt: Optional custom base prompt
+
+    Returns:
+        System prompt for non-tool conversations
+    """
+    if base_prompt is None:
+        base_prompt = get_default_system_prompt()
+
+    return base_prompt

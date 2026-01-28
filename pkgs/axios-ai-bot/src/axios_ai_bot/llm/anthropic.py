@@ -1,11 +1,12 @@
-"""Claude API integration with Haiku routing and Sonnet execution."""
+"""Anthropic Claude API integration."""
 
 import logging
-import random
-from collections.abc import Awaitable, Callable
 from typing import Any
 
 from anthropic import Anthropic
+
+from .base import LLMBackend, ProgressCallback
+from .prompts import get_default_system_prompt, get_progress_message
 
 logger = logging.getLogger(__name__)
 
@@ -13,75 +14,8 @@ logger = logging.getLogger(__name__)
 HAIKU_MODEL = "claude-3-5-haiku-latest"
 SONNET_MODEL = "claude-sonnet-4-20250514"
 
-# Type alias for progress callback
-ProgressCallback = Callable[[str], Awaitable[None]]
 
-# Witty progress messages organized by phase
-PROGRESS_MESSAGES = {
-    "thinking": [
-        "🤔 Let me think about this...",
-        "🧠 Processing your request...",
-        "💭 Hmm, interesting question...",
-        "🔍 Looking into it...",
-        "⚡ On it!",
-    ],
-    "tool_start": [
-        "🔧 Firing up the tools...",
-        "🛠️ Rolling up my sleeves...",
-        "⚙️ Getting to work...",
-        "🎯 Found what I need, executing...",
-        "🚀 Launching operation...",
-    ],
-    "tool_working": [
-        "⏳ Still working on it...",
-        "🔄 Making progress...",
-        "📊 Crunching the data...",
-        "🎪 Juggling some tasks here...",
-        "🏃 Almost there...",
-    ],
-    "multi_step": [
-        "📋 This needs a few steps, hang tight...",
-        "🎯 Multi-step operation in progress...",
-        "🔗 Chaining some actions together...",
-        "🎭 Performing a little orchestration...",
-    ],
-    "slow_response": [
-        "☕ Claude's thinking hard about this one...",
-        "🐢 Taking a bit longer than usual...",
-        "🌊 Navigating some heavy traffic...",
-        "⏱️ Still here, just being thorough!",
-        "🧘 Patience, grasshopper...",
-    ],
-}
-
-# Default system prompts
-def get_default_system_prompt() -> str:
-    """Generate system prompt with current date."""
-    from datetime import datetime
-    today = datetime.now().strftime("%A, %B %d, %Y")
-    return f"""You are Axios AI, a helpful family assistant. Today is {today}.
-
-You can help with:
-- Email: Read, search, compose, and send emails
-- Calendar: View and create events, check availability (includes religious/liturgical calendars)
-- Contacts: Look up contact information
-- General questions and conversation
-
-Be concise and friendly. When using tools, explain what you're doing briefly.
-If a task requires multiple steps, complete them without asking for confirmation unless critical.
-
-IMPORTANT: Always use today's actual date ({today}) when checking calendars or scheduling."""
-
-# For backwards compatibility
-DEFAULT_SYSTEM_PROMPT = get_default_system_prompt()
-
-def get_progress_message(phase: str) -> str:
-    """Get a random progress message for the given phase."""
-    messages = PROGRESS_MESSAGES.get(phase, PROGRESS_MESSAGES["thinking"])
-    return random.choice(messages)
-
-
-class LLMClient:
+class AnthropicClient(LLMBackend):
     """Claude API client for tool execution."""
 
     def __init__(
@@ -90,7 +24,7 @@ class LLMClient:
         system_prompt: str | None = None,
         max_context_messages: int = 10,
     ):
-        """Initialize the LLM client.
+        """Initialize the Anthropic client.
 
         Args:
             api_key: Anthropic API key
@@ -98,33 +32,33 @@ class LLMClient:
             max_context_messages: Maximum conversation history to maintain
         """
         self.client = Anthropic(api_key=api_key)
-        self.system_prompt = system_prompt or DEFAULT_SYSTEM_PROMPT
+        self.system_prompt = system_prompt or get_default_system_prompt()
         self.max_context_messages = max_context_messages
         self.conversation_history: dict[str, list[dict[str, Any]]] = {}
 
-    def _get_history(self, user_jid: str) -> list[dict[str, Any]]:
+    def _get_history(self, user_id: str) -> list[dict[str, Any]]:
         """Get conversation history for a user."""
-        if user_jid not in self.conversation_history:
-            self.conversation_history[user_jid] = []
-        return self.conversation_history[user_jid]
+        if user_id not in self.conversation_history:
+            self.conversation_history[user_id] = []
+        return self.conversation_history[user_id]
 
-    def _add_to_history(self, user_jid: str, role: str, content: str) -> None:
+    def _add_to_history(self, user_id: str, role: str, content: str) -> None:
         """Add a message to conversation history."""
-        history = self._get_history(user_jid)
+        history = self._get_history(user_id)
         history.append({"role": role, "content": content})
 
         # Trim history if too long
         if len(history) > self.max_context_messages * 2:
             # Keep the last N exchanges
-            self.conversation_history[user_jid] = history[-self.max_context_messages * 2 :]
+            self.conversation_history[user_id] = history[-self.max_context_messages * 2 :]
 
-    def clear_history(self, user_jid: str) -> None:
+    def clear_history(self, user_id: str) -> None:
         """Clear conversation history for a user."""
-        self.conversation_history.pop(user_jid, None)
+        self.conversation_history.pop(user_id, None)
 
     async def execute_with_tools(
         self,
-        user_jid: str,
+        user_id: str,
         message: str,
         tools: list[dict[str, Any]],
         tool_executor: Any,  # Callable for executing tools
@@ -133,7 +67,7 @@ class LLMClient:
         """Execute a request using Sonnet with tools.
 
         Args:
-            user_jid: The user's JID for conversation tracking
+            user_id: The user's ID for conversation tracking
             message: The user's message
             tools: List of available tools in Claude format
             tool_executor: Async callable that takes (tool_name, arguments) and returns result
@@ -143,8 +77,8 @@ class LLMClient:
             The assistant's final response text
         """
         # Add user message to history
-        self._add_to_history(user_jid, "user", message)
-        history = self._get_history(user_jid)
+        self._add_to_history(user_id, "user", message)
+        history = self._get_history(user_id)
 
         async def send_progress(phase: str) -> None:
             """Send a progress message if callback is available."""
@@ -213,7 +147,7 @@ class LLMClient:
             final_response = "\n".join(text_blocks)
 
             # Add assistant response to history
-            self._add_to_history(user_jid, "assistant", final_response)
+            self._add_to_history(user_id, "assistant", final_response)
 
             return final_response
 
@@ -221,18 +155,18 @@ class LLMClient:
             logger.error(f"LLM execution failed: {e}")
             return f"I'm sorry, I encountered an error: {e}"
 
-    async def simple_response(self, user_jid: str, message: str) -> str:
+    async def simple_response(self, user_id: str, message: str) -> str:
         """Generate a simple response without tools (for general conversation).
 
         Args:
-            user_jid: The user's JID for conversation tracking
+            user_id: The user's ID for conversation tracking
             message: The user's message
 
         Returns:
             The assistant's response text
         """
-        self._add_to_history(user_jid, "user", message)
-        history = self._get_history(user_jid)
+        self._add_to_history(user_id, "user", message)
+        history = self._get_history(user_id)
 
         try:
             response = self.client.messages.create(
@@ -245,7 +179,7 @@ class LLMClient:
             text_blocks = [block.text for block in response.content if hasattr(block, "text")]
             final_response = "\n".join(text_blocks)
 
-            self._add_to_history(user_jid, "assistant", final_response)
+            self._add_to_history(user_id, "assistant", final_response)
             return final_response
 
         except Exception as e:

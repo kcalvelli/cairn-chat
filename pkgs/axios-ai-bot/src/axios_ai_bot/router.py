@@ -1,10 +1,10 @@
-"""Message router that sends all tools to Claude for dynamic selection."""
+"""Message router that sends all tools to the LLM for dynamic selection."""
 
 import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from .llm import LLMClient
+from .llm import LLMBackend
 from .tools import DynamicToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -25,19 +25,19 @@ LOCAL_COMMANDS: dict[str, str] = {
 
 
 class MessageRouter:
-    """Routes messages to Claude with all available tools."""
+    """Routes messages to the LLM with all available tools."""
 
     def __init__(
         self,
         tool_registry: DynamicToolRegistry,
-        llm_client: LLMClient,
+        llm_client: LLMBackend,
         send_message: SendMessageCallback | None = None,
     ):
         """Initialize the message router.
 
         Args:
             tool_registry: Dynamic tool registry for tool access
-            llm_client: LLM client for execution
+            llm_client: LLM backend for execution
             send_message: Optional callback to send XMPP messages (for progress updates)
         """
         self.tool_registry = tool_registry
@@ -60,7 +60,7 @@ class MessageRouter:
         if message.startswith("/"):
             return await self._handle_command(user_jid, message)
 
-        # Get all available tools - let Claude decide which to use based on descriptions
+        # Get all available tools - let the LLM decide which to use based on descriptions
         tools = self.tool_registry.get_all_tools()
 
         if not tools:
@@ -68,18 +68,19 @@ class MessageRouter:
             logger.info("No tools available, using simple response")
             return await self.llm_client.simple_response(user_jid, message)
 
-        # Format tools for Claude and execute
+        # Format tools for the LLM and execute
         formatted_tools = self.tool_registry.format_tools_for_claude(tools)
         logger.info(f"Using all {len(formatted_tools)} available tools")
 
         # Create progress callback if we have a send_message function
         progress_callback = None
         if self.send_message:
+
             async def progress_callback(msg: str) -> None:
                 await self.send_message(user_jid, msg)
 
         return await self.llm_client.execute_with_tools(
-            user_jid=user_jid,
+            user_id=user_jid,
             message=message,
             tools=formatted_tools,
             tool_executor=self.tool_registry.execute_tool,
@@ -137,14 +138,14 @@ class MessageRouter:
 
 def create_message_handler(
     tool_registry: DynamicToolRegistry,
-    llm_client: LLMClient,
+    llm_client: LLMBackend,
     send_message: SendMessageCallback | None = None,
 ) -> Any:
     """Create a message handler function for the XMPP bot.
 
     Args:
         tool_registry: Dynamic tool registry
-        llm_client: LLM client
+        llm_client: LLM backend
         send_message: Optional callback to send XMPP messages (for progress updates)
 
     Returns:

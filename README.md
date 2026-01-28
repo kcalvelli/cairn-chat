@@ -8,7 +8,7 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 - **AI Assistant**: Chat with `@ai` to manage email, calendar, contacts, and more
 - **Native Clients**: Use Conversations (Android), Gajim (Windows/Linux), Dino (Linux), or any XMPP client
 - **Dynamic Tool Discovery**: New MCP servers added to mcp-gateway are automatically available
-- **Cost-Optimized**: Uses Haiku for intent classification, Sonnet for tool execution
+- **Flexible LLM Backend**: Choose between Claude API (cloud) or Ollama (local) for AI
 
 ## Architecture
 
@@ -30,7 +30,7 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 │                                 ▼                                       │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │                     axios-ai-bot                                  │  │
-│  │  Intent Router → Claude API → mcp-gateway → Tools                │  │
+│  │  Router → [Claude API | Ollama] → mcp-gateway → Tools            │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │                                                                         │
 └─────────────────────────────────────────────────────────────────────────┘
@@ -61,13 +61,13 @@ Add to your `flake.nix`:
 }
 ```
 
-### NixOS Configuration
+### NixOS Configuration (Claude API)
 
 ```nix
 { config, ... }:
 
 {
-  # Enable axios-chat with Prosody and the AI bot
+  # Enable axios-chat with Prosody and the AI bot (Claude backend)
   services.axios-chat = {
     prosody = {
       enable = true;
@@ -80,7 +80,8 @@ Add to your `flake.nix`:
       enable = true;
       xmppDomain = "chat.home.ts.net";
       xmppPasswordFile = config.age.secrets.ai-bot-password.path;
-      anthropicKeyFile = config.age.secrets.anthropic-key.path;
+      llmBackend = "anthropic";  # Default
+      claudeApiKeyFile = config.age.secrets.anthropic-key.path;
       mcpGatewayUrl = "http://localhost:8085";
     };
   };
@@ -89,6 +90,59 @@ Add to your `flake.nix`:
   services.mcp-gateway.enable = true;
 }
 ```
+
+### NixOS Configuration (Ollama - Local LLM)
+
+```nix
+{ config, ... }:
+
+{
+  # Enable Ollama service
+  services.ollama = {
+    enable = true;
+    acceleration = "cuda";  # or "rocm" for AMD, null for CPU
+  };
+
+  # Enable axios-chat with Ollama backend
+  services.axios-chat = {
+    prosody = {
+      enable = true;
+      domain = "chat.home.ts.net";
+      tailscaleIP = "100.64.0.1";
+      admins = [ "admin@chat.home.ts.net" ];
+    };
+
+    bot = {
+      enable = true;
+      xmppDomain = "chat.home.ts.net";
+      xmppPasswordFile = config.age.secrets.ai-bot-password.path;
+
+      # Use local Ollama instead of Claude API
+      llmBackend = "ollama";
+      ollamaUrl = "http://localhost:11434";
+      ollamaModel = "qwen3:14b-q4_K_M";
+      ollamaTemperature = 0.2;  # Lower = more deterministic
+
+      mcpGatewayUrl = "http://localhost:8085";
+    };
+  };
+
+  services.mcp-gateway.enable = true;
+}
+```
+
+### Ollama Model Setup
+
+Before using the Ollama backend, pull the required model:
+
+```bash
+ollama pull qwen3:14b-q4_K_M
+```
+
+**Recommended models for tool calling:**
+- `qwen3:14b-q4_K_M` - Best balance of quality and speed (~8GB VRAM)
+- `qwen3:32b-q4_K_M` - Higher quality, more resources (~18GB VRAM)
+- `qwen3:8b-q4_K_M` - Faster, less accurate (~5GB VRAM)
 
 ## User Account Setup
 
@@ -149,7 +203,9 @@ AI: Available commands:
     /clear - Clear conversation history
 ```
 
-## Cost Estimation
+## Cost Comparison
+
+### Claude API (Cloud)
 
 | Usage Level | Interactions/Day | Monthly Cost |
 |-------------|------------------|--------------|
@@ -157,10 +213,24 @@ AI: Available commands:
 | Moderate    | 15               | ~$6-10       |
 | Heavy       | 30               | ~$12-20      |
 
-Costs are minimized by:
-- Using Haiku ($0.80/M input) for intent classification
-- Only sending relevant tools to Sonnet based on intent
-- Local handling of simple commands and greetings
+### Ollama (Local)
+
+| Cost Type | Amount |
+|-----------|--------|
+| Monthly API cost | $0 |
+| Electricity | ~$5-15/month if running 24/7 |
+| Hardware | One-time GPU investment |
+
+**Ollama advantages:**
+- No per-request costs
+- Full privacy (data never leaves your network)
+- No rate limits
+- Works offline
+
+**Claude advantages:**
+- No hardware requirements
+- Generally more reliable tool calling
+- Easier setup
 
 ## Related Projects
 
