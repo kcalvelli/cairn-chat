@@ -141,3 +141,54 @@ def get_ollama_system_prompt(base_prompt: str | None = None) -> str:
         base_prompt = get_default_system_prompt()
 
     return base_prompt
+
+
+# Router prompt template for intent classification
+ROUTER_PROMPT_TEMPLATE = """Classify the user's request into one or more domains.
+Return ONLY the domain names as a comma-separated list. No explanation.
+
+Available domains:
+{domain_list}
+
+Examples:
+- "What time is it?" → time
+- "Check my calendar for today" → calendar
+- "Email John from my contacts" → contacts, email
+- "Schedule a meeting with the team" → calendar
+- "Find duplicate contacts" → contacts
+- "What's the latest news about AI?" → search
+- "Find pizza places near me" → search
+- "Tell me a joke" → general
+- "Hello" → general
+- "Thanks!" → general
+
+User: {message}
+Domains:"""
+
+
+def build_router_prompt(message: str, domain_list: str) -> str:
+    """Build the router prompt with the domain list.
+
+    Args:
+        message: The user's message to classify
+        domain_list: Formatted string of available domains
+
+    Returns:
+        Complete router prompt
+    """
+    return ROUTER_PROMPT_TEMPLATE.format(
+        domain_list=domain_list,
+        message=message,
+    )
+
+
+def format_domain_list(domains: list) -> str:
+    """Format domains for the router prompt.
+
+    Args:
+        domains: List of DomainConfig objects sorted by priority
+
+    Returns:
+        Formatted domain list string
+    """
+    return "\n".join(f"- {d.name}: {d.description}" for d in domains)

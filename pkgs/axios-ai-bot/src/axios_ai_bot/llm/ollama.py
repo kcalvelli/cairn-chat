@@ -7,8 +7,12 @@ from typing import Any
 
 import httpx
 
+from ..domains import DomainRegistry
 from .base import LLMBackend, ProgressCallback
 from .prompts import (
+    build_router_prompt,
+    format_domain_list,
+    get_default_system_prompt,
     get_ollama_system_prompt,
     get_progress_message,
 )
@@ -457,3 +461,139 @@ class OllamaClient(LLMBackend):
         except Exception as e:
             logger.error(f"Simple response failed: {e}")
             return f"I'm sorry, I encountered an error: {e}"
+
+    async def classify_intent(
+        self,
+        message: str,
+        registry: DomainRegistry,
+        timeout: float = 10.0,
+    ) -> list[str]:
+        """Classify user message into domains.
+
+        Args:
+            message: The user's message to classify
+            registry: Domain registry with available domains
+            timeout: Timeout in seconds for classification
+
+        Returns:
+            List of domain names. Falls back to ["general"] on error.
+        """
+        # Build router prompt
+        sorted_domains = registry.get_sorted_domains()
+        domain_list = format_domain_list(sorted_domains)
+        prompt = build_router_prompt(message, domain_list)
+
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                response = await client.post(
+                    f"{self.base_url}/api/chat",
+                    json={
+                        "model": self.model,
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a request classifier. Output only domain names, comma-separated. No explanation.",
+                            },
+                            {"role": "user", "content": prompt},
+                        ],
+                        "stream": False,
+                        "options": {
+                            "temperature": 0.1,  # Very low for consistent classification
+                            "num_ctx": 2048,  # Small context for fast classification
+                        },
+                    },
+                )
+                response.raise_for_status()
+
+                result = response.json()
+                content = result.get("message", {}).get("content", "").strip()
+
+                logger.info(f"Router classification raw: {content}")
+
+                # Parse comma-separated domains
+                domains = [d.strip().lower() for d in content.split(",") if d.strip()]
+
+                # Validate domains exist in registry
+                valid_domains = [d for d in domains if d in registry.domains]
+
+                if not valid_domains:
+                    logger.warning(f"No valid domains from classification: {content}")
+                    return ["general"]
+
+                logger.info(f"Classified domains: {valid_domains}")
+                return valid_domains
+
+        except httpx.TimeoutException:
+            logger.warning("Router classification timed out, falling back to general")
+            return ["general"]
+        except Exception as e:
+            logger.error(f"Intent classification failed: {e}")
+            return ["general"]
+
+    async def execute_with_routing(
+        self,
+        user_id: str,
+        message: str,
+        all_tools: list[dict[str, Any]],
+        tool_executor: Any,
+        registry: DomainRegistry,
+        progress_callback: ProgressCallback | None = None,
+        router_timeout: float = 10.0,
+    ) -> str:
+        """Execute request with domain-aware routing.
+
+        This method:
+        1. Classifies the user's intent to determine relevant domains
+        2. Filters tools to only those in the identified domains
+        3. Executes with the focused tool set
+
+        Args:
+            user_id: The user's ID for conversation tracking
+            message: The user's message
+            all_tools: Full list of available tools
+            tool_executor: Async callable that takes (tool_name, arguments) and returns result
+            registry: Domain registry for routing
+            progress_callback: Optional async callback for progress updates
+            router_timeout: Timeout for intent classification
+
+        Returns:
+            The assistant's final response text
+        """
+        # Step 1: Classify intent
+        domains = await self.classify_intent(message, registry, timeout=router_timeout)
+        logger.info(f"Routed to domains: {domains}")
+
+        # Step 2: Check if this is general (no tools needed)
+        if "general" in domains and len(domains) == 1:
+            logger.info("General domain - using simple response (no tools)")
+            return await self.simple_response(user_id, message)
+
+        # Step 3: Filter tools by domains
+        filtered_tools = registry.get_tools_for_domains(domains, all_tools)
+        logger.info(f"Filtered to {len(filtered_tools)} tools (from {len(all_tools)})")
+
+        if not filtered_tools:
+            logger.info("No tools after filtering - using simple response")
+            return await self.simple_response(user_id, message)
+
+        # Step 4: Build focused system prompt with domain hints
+        base_prompt = self.base_system_prompt or get_default_system_prompt()
+        domain_hints = registry.get_prompt_hints(domains)
+        focused_prompt = f"{base_prompt}\n\n{domain_hints}"
+
+        # Step 5: Execute with filtered tools
+        # Temporarily override system prompt
+        original_prompt = self.base_system_prompt
+        self.base_system_prompt = focused_prompt
+
+        try:
+            result = await self.execute_with_tools(
+                user_id=user_id,
+                message=message,
+                tools=filtered_tools,
+                tool_executor=tool_executor,
+                progress_callback=progress_callback,
+            )
+            return result
+        finally:
+            self.base_system_prompt = original_prompt

@@ -4,7 +4,9 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from .domains import DomainRegistry, get_default_registry
 from .llm import LLMBackend
+from .llm.ollama import OllamaClient
 from .tools import DynamicToolRegistry
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,9 @@ class MessageRouter:
         tool_registry: DynamicToolRegistry,
         llm_client: LLMBackend,
         send_message: SendMessageCallback | None = None,
+        domain_registry: DomainRegistry | None = None,
+        enable_domain_routing: bool = True,
+        router_timeout: float = 10.0,
     ):
         """Initialize the message router.
 
@@ -39,10 +44,16 @@ class MessageRouter:
             tool_registry: Dynamic tool registry for tool access
             llm_client: LLM backend for execution
             send_message: Optional callback to send XMPP messages (for progress updates)
+            domain_registry: Optional domain registry for routing (defaults to built-in)
+            enable_domain_routing: Whether to use domain-aware routing (default True)
+            router_timeout: Timeout for intent classification in seconds
         """
         self.tool_registry = tool_registry
         self.llm_client = llm_client
         self.send_message = send_message
+        self.domain_registry = domain_registry or get_default_registry()
+        self.enable_domain_routing = enable_domain_routing
+        self.router_timeout = router_timeout
 
     async def handle_message(self, user_jid: str, message: str) -> str:
         """Route a message and generate a response.
@@ -68,9 +79,8 @@ class MessageRouter:
             logger.info("No tools available, using simple response")
             return await self.llm_client.simple_response(user_jid, message)
 
-        # Format tools for the LLM and execute
+        # Format tools for the LLM
         formatted_tools = self.tool_registry.format_tools_for_claude(tools)
-        logger.info(f"Using all {len(formatted_tools)} available tools")
 
         # Create progress callback if we have a send_message function
         progress_callback = None
@@ -79,6 +89,21 @@ class MessageRouter:
             async def progress_callback(msg: str) -> None:
                 await self.send_message(user_jid, msg)
 
+        # Use domain routing if enabled and client supports it
+        if self.enable_domain_routing and isinstance(self.llm_client, OllamaClient):
+            logger.info(f"Using domain routing with {len(formatted_tools)} total tools")
+            return await self.llm_client.execute_with_routing(
+                user_id=user_jid,
+                message=message,
+                all_tools=formatted_tools,
+                tool_executor=self.tool_registry.execute_tool,
+                registry=self.domain_registry,
+                progress_callback=progress_callback,
+                router_timeout=self.router_timeout,
+            )
+
+        # Fallback: Send all tools to LLM (for Claude or when routing disabled)
+        logger.info(f"Using all {len(formatted_tools)} available tools (no routing)")
         return await self.llm_client.execute_with_tools(
             user_id=user_jid,
             message=message,
