@@ -112,3 +112,16 @@ To manage the transition and provide fallback:
 
 This proposal creates one new capability spec:
 - `llm-backend`: Defines the abstracted LLM backend interface supporting multiple providers
+
+## Implementation Notes (2026-01-28)
+
+**Technical Pivot: Hermes → Native Tool Calling**
+
+During implementation, we discovered that Hermes-style prompting (XML tags) was not triggering reliable tool use with Qwen3. The model would respond conversationally ("I'll check that for you") instead of actually calling tools.
+
+**Solution:** Switched to Ollama's native tool calling API:
+- Pass tools in Ollama's `tools` parameter (not in system prompt)
+- Model returns structured `tool_calls` in response
+- More reliable tool triggering than prompt-based approaches
+
+**Outcome:** Tool calling now works correctly, but performance is limited by context size. See `add-domain-routing` proposal for optimization approach.
