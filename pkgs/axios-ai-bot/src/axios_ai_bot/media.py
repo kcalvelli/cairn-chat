@@ -228,15 +228,15 @@ def filename_from_url(url: str) -> str:
 
 
 def _localize_upload_url(url: str) -> str:
-    """Rewrite external HTTPS upload URL to local Prosody HTTP.
+    """Rewrite external upload URL to local Prosody HTTP.
 
-    Tailscale Serve terminates TLS on port 5281 and forwards to Prosody
-    HTTP on port 5280. The bot runs on the same host, so it downloads
-    directly from Prosody on localhost without going through Tailscale Serve.
+    Tailscale Serve forwards TCP on port 5280 to Prosody HTTP on localhost.
+    The bot runs on the same host, so it downloads directly from Prosody
+    on localhost without going through Tailscale Serve.
     """
-    if ":5281/" in url:
+    if ":5280/" in url:
         # Extract path from URL and rewrite to localhost Prosody HTTP
-        path = url.split(":5281", 1)[1]  # everything after :5281
+        path = url.split(":5280", 1)[1]  # everything after :5280
         return f"http://127.0.0.1:5280{path}"
     return url
 

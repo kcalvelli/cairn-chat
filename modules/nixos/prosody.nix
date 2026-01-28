@@ -86,18 +86,6 @@ in
     httpFileShare = {
       enable = mkEnableOption "HTTP file sharing (images, documents) via mod_http_file_share";
 
-      uploadHostname = mkOption {
-        type = types.str;
-        default = "${config.networking.hostName}.${builtins.concatStringsSep "." (builtins.tail (lib.splitString "." cfg.domain))}";
-        description = ''
-          Hostname for HTTP upload URLs. Defaults to the machine's Tailscale FQDN
-          derived from networking.hostName and the tailnet domain suffix.
-
-          Tailscale's --tls-terminated-tcp only works on the machine's own IP,
-          not on service IPs, so uploads must use the machine hostname.
-        '';
-      };
-
       maxFileSize = mkOption {
         type = types.int;
         default = 10485760; # 10 MB
@@ -242,11 +230,9 @@ in
         storage = "internal"
 
         ${optionalString cfg.httpFileShare.enable ''
-          -- Tailscale Serve terminates TLS on port 5281 with a valid *.ts.net cert,
-          -- forwarding to Prosody HTTP on localhost:5280. Uses the machine hostname
-          -- (not the XMPP service hostname) because --tls-terminated-tcp only works
-          -- on the machine's own Tailscale IP.
-          http_external_url = "https://${cfg.httpFileShare.uploadHostname}:5281"
+          -- Expose Prosody HTTP via Tailscale TCP on the chat service.
+          -- Plain HTTP is fine since Tailscale provides WireGuard encryption.
+          http_external_url = "http://${cfg.domain}:5280"
         ''}
 
         ${cfg.extraConfig}
@@ -361,11 +347,12 @@ in
       };
     };
 
-    # Tailscale serve for HTTP file uploads (TLS-terminated TCP on port 5281)
-    # Uses --tls-terminated-tcp (same Tailscale-level interception as --tcp for XMPP)
-    # with TLS termination using valid *.ts.net cert, forwarding plain HTTP to Prosody.
+    # Tailscale serve for HTTP file uploads (plain TCP on port 5280)
+    # Uses --tcp on the same service as XMPP C2S so uploads resolve on
+    # chat.<tailnet>.ts.net. Plain HTTP is fine — Tailscale encrypts at
+    # the WireGuard layer.
     systemd.services.tailscale-serve-xmpp-upload = mkIf (useTailscaleServe && cfg.httpFileShare.enable) {
-      description = "Tailscale Serve TLS for XMPP HTTP File Upload";
+      description = "Tailscale Serve TCP for XMPP HTTP File Upload";
       after = [
         "tailscaled.service"
         "prosody.service"
@@ -393,11 +380,8 @@ in
       serviceConfig = {
         Type = "oneshot";
         RemainAfterExit = true;
-        # TLS-terminated TCP on machine's own Tailscale IP (not the service IP).
-        # --tls-terminated-tcp doesn't work with --service because service IPs
-        # have hairpin routing issues. Uses machine hostname instead.
-        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --bg --tls-terminated-tcp=5281 tcp://127.0.0.1:5280";
-        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --tls-terminated-tcp=5281 off";
+        ExecStart = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5280 tcp://127.0.0.1:5280";
+        ExecStop = "${pkgs.tailscale}/bin/tailscale serve --service=svc:${cfg.tailscaleServe.serviceName} --tcp=5280 off";
         Restart = "on-failure";
         RestartSec = "5s";
       };
