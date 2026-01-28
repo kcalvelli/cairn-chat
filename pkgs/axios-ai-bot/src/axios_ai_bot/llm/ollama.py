@@ -1,4 +1,4 @@
-"""Ollama LLM backend using Qwen3 with Hermes-style tool calling."""
+"""Ollama LLM backend using native tool calling."""
 
 import json
 import logging
@@ -9,7 +9,6 @@ import httpx
 
 from .base import LLMBackend, ProgressCallback
 from .prompts import (
-    get_hermes_tool_prompt,
     get_ollama_system_prompt,
     get_progress_message,
 )
@@ -114,27 +113,8 @@ def format_tools_for_ollama(tools: list[dict[str, Any]]) -> list[dict[str, Any]]
     ]
 
 
-def format_tools_for_hermes_prompt(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Format tools for inclusion in Hermes-style system prompt.
-
-    Args:
-        tools: List of tools in internal format
-
-    Returns:
-        List of tool definitions for the prompt
-    """
-    return [
-        {
-            "name": t["name"],
-            "description": t["description"],
-            "parameters": t["input_schema"],
-        }
-        for t in tools
-    ]
-
-
 class OllamaClient(LLMBackend):
-    """Ollama-based LLM client using Qwen3 with Hermes-style tool calling."""
+    """Ollama-based LLM client using native tool calling."""
 
     def __init__(
         self,
@@ -217,9 +197,10 @@ class OllamaClient(LLMBackend):
                 },
             }
 
-            # Disable thinking for tool calls to prevent stopword issues
+            # Add native tool calling if tools provided
             if tools:
-                payload["think"] = False
+                payload["tools"] = tools
+                payload["think"] = False  # Disable thinking for tool calls
             else:
                 payload["think"] = self.enable_thinking
 
@@ -254,9 +235,11 @@ class OllamaClient(LLMBackend):
         registered_tools = {t["name"] for t in tools}
         tool_schemas = {t["name"]: t["input_schema"] for t in tools}
 
-        # Format tools for Hermes prompt
-        hermes_tools = format_tools_for_hermes_prompt(tools)
-        system_prompt = get_hermes_tool_prompt(hermes_tools, self.base_system_prompt)
+        # Format tools for Ollama's native tool calling
+        ollama_tools = format_tools_for_ollama(tools)
+
+        # Use simple system prompt (not Hermes-style) - Ollama handles tool format
+        system_prompt = get_ollama_system_prompt(self.base_system_prompt)
 
         # Add user message to history
         self._add_to_history(user_id, "user", message)
@@ -282,8 +265,8 @@ class OllamaClient(LLMBackend):
             retry_count = 0
 
             while True:
-                # Call Ollama
-                response = await self._chat(messages, system_prompt)
+                # Call Ollama with native tool calling
+                response = await self._chat(messages, system_prompt, tools=ollama_tools)
                 response_text = response.get("message", {}).get("content", "")
 
                 logger.info(f"Ollama response keys: {list(response.keys())}")
@@ -292,9 +275,11 @@ class OllamaClient(LLMBackend):
 
                 # Check for native tool calls first (Ollama's tool_calls field)
                 native_tool_calls = response.get("message", {}).get("tool_calls", [])
+                logger.info(f"Native tool calls: {len(native_tool_calls) if native_tool_calls else 0}")
 
                 if native_tool_calls:
                     # Handle native Ollama tool calling
+                    logger.info(f"Tool calls: {[tc.get('function', {}).get('name') for tc in native_tool_calls]}")
                     tool_iteration += 1
 
                     if tool_iteration == 1:
