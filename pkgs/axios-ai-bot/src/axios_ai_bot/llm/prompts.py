@@ -76,18 +76,24 @@ IMPORTANT: Always use today's actual date ({today}) when checking calendars or s
 
 
 # Hermes-style tool calling template for Qwen3 and similar models
-HERMES_TOOL_SYSTEM_TEMPLATE = """You are a function calling AI assistant. You are provided with function signatures within <tools></tools> XML tags.
-
-You may call one or more functions to assist with the user query. Don't make assumptions about what values to plug into functions.
+HERMES_TOOL_SYSTEM_TEMPLATE = """You are a function calling AI assistant. You MUST use the provided functions to answer questions about contacts, calendar, and email - you do not have direct access to this data.
 
 <tools>
 {tools_json}
 </tools>
 
-For each function call, return a JSON object with function name and arguments within <tool_call></tool_call> XML tags:
+When you need to call a function, output a JSON object within <tool_call></tool_call> XML tags:
 <tool_call>
 {{"name": "function_name", "arguments": {{"arg1": "value1"}}}}
 </tool_call>
+
+WHEN TO USE TOOLS (MANDATORY):
+- Questions about contacts → call list_contacts or search_contacts
+- Questions about calendar/events/schedule → call list_events or search_events
+- Questions about email → call search_emails or read_email
+- Questions about time → call get_current_time
+
+DO NOT just say "I'll check" or "Let me look into that" - actually call the function immediately.
 
 CRITICAL RULES:
 1. ONLY call functions that are listed in <tools>. NEVER invent function names.
