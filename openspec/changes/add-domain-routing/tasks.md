@@ -1,5 +1,13 @@
 # Tasks: Add Domain-Aware Routing
 
+## Phase 0: Prerequisites
+
+- [ ] **0.1 Update mcp-gateway default servers**
+  - Add `brave-search` to default autoEnable list in mcp-gateway NixOS module
+  - Ensure brave-search MCP server is available
+  - Verify: `brave-search` tools appear in mcp-gateway /api/tools
+  - Note: This is in the axios repo, not axios-ai-chat
+
 ## Phase 1: Domain Registry
 
 - [ ] **1.1 Create domain registry module**

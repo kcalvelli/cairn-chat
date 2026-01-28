@@ -141,6 +141,17 @@ DEFAULT_DOMAINS = {
         prompt_hint="You can check the current time and convert between timezones.",
         priority=4,
     ),
+    "search": DomainConfig(
+        name="search",
+        description="Searching the web for information, news, or general questions",
+        servers=["brave-search"],
+        tools=[
+            "brave-search__brave_web_search",
+            "brave-search__brave_local_search",
+        ],
+        prompt_hint="You can search the web for current information. Use web search for general queries and local search for businesses/places.",
+        priority=5,
+    ),
     "general": DomainConfig(
         name="general",
         description="General conversation, questions, or tasks not requiring data access",
@@ -169,8 +180,9 @@ Examples:
 - "Email John from my contacts" → contacts, email
 - "Schedule a meeting with the team" → calendar
 - "Find duplicate contacts" → contacts
+- "What's the latest news about AI?" → search
+- "Find pizza places near me" → search
 - "Tell me a joke" → general
-- "What's the weather like?" → general
 
 User: {message}
 Domains:"""
