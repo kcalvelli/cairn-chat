@@ -17,14 +17,9 @@ LOCAL_COMMANDS: dict[str, str] = {
     "/help": "Available commands:\n"
     "  /help - Show this help message\n"
     "  /refresh - Refresh available tools\n"
-    "  /tools - List available tool categories\n"
+    "  /tools - List available tools\n"
     "  /clear - Clear conversation history\n"
-    "\nYou can also just chat naturally! Ask me to:\n"
-    "  - Check your calendar\n"
-    "  - Send an email\n"
-    "  - Look up a contact\n"
-    "  - Search the web\n"
-    "  - And more!",
+    "\nJust chat naturally - I'll use the right tools automatically!",
     "/ping": "Pong!",
 }
 
