@@ -111,7 +111,12 @@ class DynamicToolRegistry:
 
     async def start(self) -> None:
         """Start the periodic refresh task."""
-        await self.refresh()
+        try:
+            await self.refresh()
+        except Exception as e:
+            logger.warning(f"Initial tool refresh failed: {e}")
+            logger.info("Periodic refresh will retry automatically")
+        # Always start the periodic refresh task, even if initial refresh failed
         self._refresh_task = asyncio.create_task(self._periodic_refresh())
 
     async def stop(self) -> None:
