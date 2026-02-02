@@ -179,7 +179,7 @@ class GeminiClient(LLMBackend):
             final_response = response.text or ""
 
             # Add assistant response to history
-            self._add_to_history(user_id, "model", [types.Part.from_text(final_response)])
+            self._add_to_history(user_id, "model", [types.Part.from_text(text=final_response)])
 
             return final_response
 
@@ -215,7 +215,7 @@ class GeminiClient(LLMBackend):
             )
 
             final_response = response.text or ""
-            self._add_to_history(user_id, "model", [types.Part.from_text(final_response)])
+            self._add_to_history(user_id, "model", [types.Part.from_text(text=final_response)])
             return final_response
 
         except Exception as e:

@@ -87,7 +87,7 @@ class UserMessage:
 
         # Then text
         if self.text:
-            parts.append(types.Part.from_text(self.text))
+            parts.append(types.Part.from_text(text=self.text))
 
         return parts
 
