@@ -135,7 +135,8 @@ class DynamicToolRegistry:
 
         Gemini's function declaration format is a subset of JSON Schema.
         Fields like additionalProperties, $schema, default, etc. cause
-        400 INVALID_ARGUMENT errors and must be removed.
+        400 INVALID_ARGUMENT errors and must be removed. The required
+        array must also be pruned to only reference properties that exist.
         """
         if isinstance(schema, dict):
             # Fields not supported by Gemini's Schema type
@@ -146,11 +147,20 @@ class DynamicToolRegistry:
                 "default",
                 "title",
             }
-            return {
-                k: DynamicToolRegistry._clean_schema(v)
-                for k, v in schema.items()
-                if k not in unsupported
-            }
+            cleaned = {}
+            for k, v in schema.items():
+                if k in unsupported:
+                    continue
+                cleaned[k] = DynamicToolRegistry._clean_schema(v)
+
+            # Prune required list to only include defined properties
+            if "required" in cleaned and "properties" in cleaned:
+                defined = set(cleaned["properties"].keys())
+                cleaned["required"] = [r for r in cleaned["required"] if r in defined]
+                if not cleaned["required"]:
+                    del cleaned["required"]
+
+            return cleaned
         if isinstance(schema, list):
             return [DynamicToolRegistry._clean_schema(item) for item in schema]
         return schema
