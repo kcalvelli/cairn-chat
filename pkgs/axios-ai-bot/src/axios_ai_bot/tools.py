@@ -129,6 +129,32 @@ class DynamicToolRegistry:
         """Return all available tools."""
         return self.tools
 
+    @staticmethod
+    def _clean_schema(schema: Any) -> Any:
+        """Recursively strip fields that Gemini doesn't accept from JSON Schema.
+
+        Gemini's function declaration format is a subset of JSON Schema.
+        Fields like additionalProperties, $schema, default, etc. cause
+        400 INVALID_ARGUMENT errors and must be removed.
+        """
+        if isinstance(schema, dict):
+            # Fields not supported by Gemini's Schema type
+            unsupported = {
+                "additionalProperties",
+                "additional_properties",
+                "$schema",
+                "default",
+                "title",
+            }
+            return {
+                k: DynamicToolRegistry._clean_schema(v)
+                for k, v in schema.items()
+                if k not in unsupported
+            }
+        if isinstance(schema, list):
+            return [DynamicToolRegistry._clean_schema(item) for item in schema]
+        return schema
+
     def format_tools_for_gemini(
         self, tools: list[dict[str, Any]] | None = None
     ) -> list[dict[str, Any]]:
@@ -152,7 +178,7 @@ class DynamicToolRegistry:
             # Only include parameters if there are properties defined
             schema = t.get("input_schema", {})
             if schema and schema.get("properties"):
-                decl["parameters"] = schema
+                decl["parameters"] = self._clean_schema(schema)
             declarations.append(decl)
         return declarations
 
