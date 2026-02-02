@@ -2,7 +2,7 @@
 #
 # Provides the systemd service for the AI-powered XMPP bot
 # that connects to mcp-gateway for tool execution.
-# Uses Anthropic Claude API for AI responses.
+# Uses Google Gemini API for AI responses.
 {
   config,
   lib,
@@ -72,10 +72,10 @@ in
       '';
     };
 
-    claudeApiKeyFile = mkOption {
+    geminiApiKeyFile = mkOption {
       type = types.path;
       description = ''
-        Path to file containing the Claude/Anthropic API key.
+        Path to file containing the Google Gemini API key.
         The file should contain only the API key with no trailing newline.
       '';
     };
@@ -194,7 +194,7 @@ in
           XMPP_SERVER = cfg.xmppServer;
           XMPP_PORT = toString cfg.xmppPort;
           XMPP_PASSWORD_FILE = cfg.xmppPasswordFile;
-          ANTHROPIC_API_KEY_FILE = cfg.claudeApiKeyFile;
+          GEMINI_API_KEY_FILE = cfg.geminiApiKeyFile;
           MCP_GATEWAY_URL = cfg.mcpGatewayUrl;
           TOOL_REFRESH_INTERVAL = toString cfg.toolRefreshInterval;
           PYTHONUNBUFFERED = "1";
@@ -239,7 +239,7 @@ in
         BindReadOnlyPaths =
           [
             cfg.xmppPasswordFile
-            cfg.claudeApiKeyFile
+            cfg.geminiApiKeyFile
             # DNS resolution (required for Tailscale MagicDNS)
             "/etc/resolv.conf"
             "/etc/hosts"

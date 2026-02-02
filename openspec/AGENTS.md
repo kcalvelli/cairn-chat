@@ -43,7 +43,7 @@ axios-chat uses the **OpenSpec** framework for SDD:
 
 - Use `slixmpp` for async XMPP.
 - Use `httpx` for async HTTP to mcp-gateway.
-- Use `anthropic` SDK for Claude API.
+- Use `google-genai` SDK for Gemini API.
 - All functions should be typed.
 
 ## Summary of OpenSpec Files

@@ -1,6 +1,5 @@
 """Media detection, download, and message types for multimodal XMPP messages."""
 
-import base64
 import logging
 import re
 from dataclasses import dataclass, field
@@ -9,12 +8,12 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-# Supported MIME types for Claude
+# Supported MIME types
 IMAGE_MIME_TYPES = {"image/jpeg", "image/png", "image/gif", "image/webp"}
 DOCUMENT_MIME_TYPES = {"application/pdf"}
 SUPPORTED_MIME_TYPES = IMAGE_MIME_TYPES | DOCUMENT_MIME_TYPES
 
-# Claude's limits
+# Size limits
 MAX_IMAGE_SIZE = 3_932_160  # 3.75 MB
 MAX_DOCUMENT_SIZE = 33_554_432  # 32 MB
 
@@ -52,35 +51,6 @@ class MediaAttachment:
     def size(self) -> int:
         return len(self.data)
 
-    def to_claude_content_block(self) -> dict:
-        """Convert to a Claude API content block.
-
-        Returns:
-            A dict suitable for inclusion in Claude's messages API content list.
-        """
-        b64_data = base64.b64encode(self.data).decode("utf-8")
-
-        if self.is_image:
-            return {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": self.mime_type,
-                    "data": b64_data,
-                },
-            }
-        elif self.is_document:
-            return {
-                "type": "document",
-                "source": {
-                    "type": "base64",
-                    "media_type": self.mime_type,
-                    "data": b64_data,
-                },
-            }
-        else:
-            raise ValueError(f"Unsupported MIME type: {self.mime_type}")
-
 
 @dataclass
 class UserMessage:
@@ -96,25 +66,30 @@ class UserMessage:
     def has_attachments(self) -> bool:
         return len(self.attachments) > 0
 
-    def to_claude_content(self) -> str | list[dict]:
-        """Convert to Claude API message content.
+    def to_gemini_parts(self) -> list:
+        """Convert to Gemini API Part list.
 
         Returns:
-            A plain string for text-only messages, or a list of content blocks
-            for messages with attachments.
+            A list of google.genai.types.Part objects for the message content.
         """
-        if not self.has_attachments:
-            return self.text
+        from google.genai import types
 
-        # Build content blocks: attachments first, then text
-        blocks: list[dict] = []
+        parts: list[types.Part] = []
+
+        # Attachments first
         for attachment in self.attachments:
-            blocks.append(attachment.to_claude_content_block())
+            parts.append(
+                types.Part.from_bytes(
+                    data=attachment.data,
+                    mime_type=attachment.mime_type,
+                )
+            )
 
+        # Then text
         if self.text:
-            blocks.append({"type": "text", "text": self.text})
+            parts.append(types.Part.from_text(self.text))
 
-        return blocks
+        return parts
 
 
 def detect_media_url(msg) -> str | None:

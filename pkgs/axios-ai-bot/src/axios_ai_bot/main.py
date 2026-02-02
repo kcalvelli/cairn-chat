@@ -64,16 +64,16 @@ def get_config() -> dict[str, Any]:
             sys.exit(1)
         config["xmpp_password"] = xmpp_password
 
-    # Anthropic API key (required)
-    anthropic_key_file = os.environ.get("ANTHROPIC_API_KEY_FILE")
-    if anthropic_key_file:
-        config["anthropic_key"] = load_secret(anthropic_key_file)
+    # Gemini API key (required)
+    gemini_key_file = os.environ.get("GEMINI_API_KEY_FILE")
+    if gemini_key_file:
+        config["gemini_key"] = load_secret(gemini_key_file)
     else:
-        anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
-        if not anthropic_key:
-            logger.error("ANTHROPIC_API_KEY or ANTHROPIC_API_KEY_FILE is required")
+        gemini_key = os.environ.get("GEMINI_API_KEY")
+        if not gemini_key:
+            logger.error("GEMINI_API_KEY or GEMINI_API_KEY_FILE is required")
             sys.exit(1)
-        config["anthropic_key"] = anthropic_key
+        config["gemini_key"] = gemini_key
 
     # Optional: mcp-gateway URL
     config["mcp_gateway_url"] = os.environ.get("MCP_GATEWAY_URL", "http://localhost:8085")
@@ -121,9 +121,9 @@ async def async_main() -> None:
         refresh_interval=int(config["tool_refresh_interval"]),
     )
 
-    # Create LLM client (Anthropic Claude)
+    # Create LLM client (Google Gemini)
     llm_config = {
-        "api_key": config["anthropic_key"],
+        "api_key": config["gemini_key"],
         "system_prompt": config["system_prompt"] or None,
         "user_config": config["user_config"],
     }

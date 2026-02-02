@@ -101,11 +101,11 @@ class DynamicToolRegistry:
 
             server_id = tool.get("server_id", tool_list[i].get("server_id", "unknown"))
             original_name = tool.get("name", tool_list[i]["name"])
-            # Sanitize tool name for Claude API (only allows [a-zA-Z0-9_-])
+            # Sanitize tool name (only [a-zA-Z0-9_-] allowed)
             safe_name = original_name.replace(".", "_").replace(" ", "_")
             tool_name = f"{server_id}__{safe_name}"
 
-            # Get input schema, ensuring it has required 'type' field for Claude
+            # Get input schema, ensuring it has required 'type' field
             input_schema = tool.get("input_schema") or tool.get("inputSchema") or {}
             if not input_schema or "type" not in input_schema:
                 # Default to empty object schema if not provided
@@ -129,28 +129,32 @@ class DynamicToolRegistry:
         """Return all available tools."""
         return self.tools
 
-    def format_tools_for_claude(
+    def format_tools_for_gemini(
         self, tools: list[dict[str, Any]] | None = None
     ) -> list[dict[str, Any]]:
-        """Format tools for Claude API.
+        """Format tools as Gemini FunctionDeclaration dicts.
 
         Args:
             tools: List of tools to format, or None for all tools
 
         Returns:
-            List of tool definitions in Claude's expected format
+            List of function declaration dicts for Gemini's Tool format
         """
         if tools is None:
             tools = self.tools
 
-        return [
-            {
+        declarations = []
+        for t in tools:
+            decl: dict[str, Any] = {
                 "name": t["name"],
                 "description": t["description"],
-                "input_schema": t["input_schema"],
             }
-            for t in tools
-        ]
+            # Only include parameters if there are properties defined
+            schema = t.get("input_schema", {})
+            if schema and schema.get("properties"):
+                decl["parameters"] = schema
+            declarations.append(decl)
+        return declarations
 
     async def execute_tool(self, tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
         """Execute a tool via mcp-gateway.

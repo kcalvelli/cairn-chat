@@ -50,7 +50,7 @@
 
             dependencies = with pkgs.python3Packages; [
               slixmpp # Async XMPP client
-              anthropic # Claude API
+              google-genai # Gemini API
               httpx # Async HTTP client
               pydantic # Data validation
             ];

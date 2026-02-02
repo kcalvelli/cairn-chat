@@ -13,7 +13,7 @@ ProgressCallback = Callable[[str], Awaitable[None]]
 class LLMBackend(ABC):
     """Abstract base class for LLM backends.
 
-    The AnthropicClient implements this interface for Claude API access.
+    The GeminiClient implements this interface for Gemini API access.
     """
 
     @abstractmethod

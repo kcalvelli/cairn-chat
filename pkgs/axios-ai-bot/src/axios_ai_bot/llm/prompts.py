@@ -1,4 +1,4 @@
-"""System prompts and templates for the Anthropic Claude backend."""
+"""System prompts and templates for the LLM backend."""
 
 import random
 from datetime import datetime
@@ -94,7 +94,6 @@ def get_default_system_prompt() -> str:
     """Generate the default system prompt with current date.
 
     This is the base prompt used when no custom prompt is provided.
-    Backend-specific additions (like tool instructions) are added separately.
     """
     today = get_current_date()
     return f"""You are Axios AI, a helpful family assistant. Today is {today}.
@@ -115,54 +114,3 @@ CRITICAL RULES:
 - Example: If asked to email someone but their contact has no email address, say "I couldn't find an email address for [name] in your contacts."
 
 IMPORTANT: Always use today's actual date ({today}) when checking calendars or scheduling."""
-
-
-# Router prompt template for intent classification
-ROUTER_PROMPT_TEMPLATE = """Classify the user's request into one or more domains.
-Return ONLY the domain names as a comma-separated list. No explanation.
-
-Available domains:
-{domain_list}
-
-Examples:
-- "What time is it?" → time
-- "Check my calendar for today" → calendar
-- "Email John from my contacts" → contacts, email
-- "Schedule a meeting with the team" → calendar
-- "Find duplicate contacts" → contacts
-- "What's the latest news about AI?" → search
-- "Find pizza places near me" → search
-- "Tell me a joke" → general
-- "Hello" → general
-- "Thanks!" → general
-
-User: {message}
-Domains:"""
-
-
-def build_router_prompt(message: str, domain_list: str) -> str:
-    """Build the router prompt with the domain list.
-
-    Args:
-        message: The user's message to classify
-        domain_list: Formatted string of available domains
-
-    Returns:
-        Complete router prompt
-    """
-    return ROUTER_PROMPT_TEMPLATE.format(
-        domain_list=domain_list,
-        message=message,
-    )
-
-
-def format_domain_list(domains: list) -> str:
-    """Format domains for the router prompt.
-
-    Args:
-        domains: List of DomainConfig objects sorted by priority
-
-    Returns:
-        Formatted domain list string
-    """
-    return "\n".join(f"- {d.name}: {d.description}" for d in domains)

@@ -4,7 +4,6 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from .domains import DomainRegistry, get_default_registry
 from .llm import LLMBackend
 from .media import UserMessage
 from .tools import DynamicToolRegistry
@@ -34,8 +33,6 @@ class MessageRouter:
         tool_registry: DynamicToolRegistry,
         llm_client: LLMBackend,
         send_message: SendMessageCallback | None = None,
-        domain_registry: DomainRegistry | None = None,
-        enable_domain_routing: bool = True,
     ):
         """Initialize the message router.
 
@@ -43,14 +40,10 @@ class MessageRouter:
             tool_registry: Dynamic tool registry for tool access
             llm_client: LLM backend for execution
             send_message: Optional callback to send XMPP messages (for progress updates)
-            domain_registry: Optional domain registry for routing (defaults to built-in)
-            enable_domain_routing: Whether to use domain-aware routing (default True)
         """
         self.tool_registry = tool_registry
         self.llm_client = llm_client
         self.send_message = send_message
-        self.domain_registry = domain_registry or get_default_registry()
-        self.enable_domain_routing = enable_domain_routing
 
     async def handle_message(self, user_jid: str, message: UserMessage) -> str:
         """Route a message and generate a response.
@@ -67,7 +60,7 @@ class MessageRouter:
         if text.startswith("/") and not message.has_attachments:
             return await self._handle_command(user_jid, text)
 
-        # Get all available tools - let the LLM decide which to use based on descriptions
+        # Get all available tools
         tools = self.tool_registry.get_all_tools()
 
         if not tools:
@@ -75,8 +68,8 @@ class MessageRouter:
             logger.info("No tools available, using simple response")
             return await self.llm_client.simple_response(user_jid, message)
 
-        # Format tools for the LLM
-        formatted_tools = self.tool_registry.format_tools_for_claude(tools)
+        # Format tools for Gemini and send all of them
+        formatted_tools = self.tool_registry.format_tools_for_gemini(tools)
 
         # Create progress callback if we have a send_message function
         progress_callback = None
@@ -85,20 +78,7 @@ class MessageRouter:
             async def progress_callback(msg: str) -> None:
                 await self.send_message(user_jid, msg)
 
-        # Use domain routing if enabled and client supports it
-        if self.enable_domain_routing and hasattr(self.llm_client, "execute_with_routing"):
-            logger.info(f"Using domain routing with {len(formatted_tools)} total tools")
-            return await self.llm_client.execute_with_routing(
-                user_id=user_jid,
-                message=message,
-                all_tools=formatted_tools,
-                tool_executor=self.tool_registry.execute_tool,
-                registry=self.domain_registry,
-                progress_callback=progress_callback,
-            )
-
-        # Fallback: Send all tools to LLM (when routing disabled or not supported)
-        logger.info(f"Using all {len(formatted_tools)} available tools (no routing)")
+        logger.info(f"Sending all {len(formatted_tools)} tools to LLM")
         return await self.llm_client.execute_with_tools(
             user_id=user_jid,
             message=message,

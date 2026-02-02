@@ -11,7 +11,7 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 - Dynamic tool discovery from mcp-gateway
 - NixOS modules for declarative configuration
 - Standalone Nix flake consumable by axios and other projects
-- Claude API with domain routing (Haiku classifies, Sonnet executes)
+- Google Gemini Flash API for AI responses (all tools sent on every request)
 - Media support: images (JPEG, PNG, GIF, WebP) and documents (PDF) via XEP-0363 HTTP File Upload
 - Multimodal Claude integration for image/document analysis
 
@@ -28,7 +28,7 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 1. **Flake-First**: Standalone flake that exports NixOS modules
 2. **Tailscale-Only Security**: Bind to Tailscale interface, no external access
 3. **Dynamic Tool Discovery**: Query mcp-gateway for available tools at runtime
-4. **Domain Routing**: Haiku classifies intent cheaply, Sonnet handles execution
+4. **All Tools, Every Request**: Gemini Flash is cheap enough to skip tool filtering
 5. **Loose Coupling**: Runtime configuration for mcp-gateway URL, not build-time dependency
 6. **Anti-Hallucination**: Multi-layer validation for tool calls to prevent errors
 
@@ -36,7 +36,7 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 
 - **XMPP Server**: Prosody (via NixOS services.prosody)
 - **Bot Framework**: Python with slixmpp (async XMPP library)
-- **LLM Integration**: Anthropic Claude API (Haiku for routing, Sonnet for execution)
+- **LLM Integration**: Google Gemini API (Flash model for all operations)
 - **Tool Gateway**: mcp-gateway (runtime dependency via HTTP)
 - **Deployment**: Nix flake with NixOS modules
 - **Secret Management**: Integration with agenix/sops-nix
@@ -72,6 +72,6 @@ A family-oriented XMPP chat system with an integrated AI assistant, designed for
 
 ## External Dependencies
 
-- Anthropic API key (for Claude access)
+- Google Gemini API key (for Gemini access)
 - mcp-gateway running on the network
 - Tailscale for network access control
