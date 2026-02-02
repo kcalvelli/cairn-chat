@@ -93,6 +93,13 @@ The system SHALL provide the following prosody configuration options.
 
 The system SHALL provide the following bot configuration options.
 
+#### Scenario: Gemini API key
+
+- **GIVEN** `services.axios-chat.bot.geminiApiKeyFile = "/run/secrets/gemini-api-key"`
+- **WHEN** the bot starts
+- **THEN** it reads the API key from the file
+- **AND** uses it for Gemini API calls
+
 #### Scenario: Enable option
 
 - **GIVEN** `services.axios-chat.bot.enable = true`
@@ -114,56 +121,23 @@ The system SHALL provide the following bot configuration options.
 - **THEN** it connects as "ai@chat.ts.net"
 - **AND** reads the password from the specified file
 
-#### Scenario: Anthropic API key
-
-- **GIVEN** `services.axios-chat.bot.anthropicKeyFile = "/run/secrets/anthropic"`
-- **WHEN** the bot starts
-- **THEN** it reads the API key from the file
-- **AND** uses it for Claude API calls
-
-#### Scenario: mcp-gateway URL
-
-- **GIVEN** `services.axios-chat.bot.mcpGatewayUrl = "http://localhost:8085"`
-- **WHEN** the bot fetches tools
-- **THEN** it uses that URL
-
-#### Scenario: Tool refresh interval
-
-- **GIVEN** `services.axios-chat.bot.toolRefreshInterval = 600`
-- **WHEN** the bot is running
-- **THEN** it refreshes tools every 600 seconds
-
-#### Scenario: System prompt file
-
-- **GIVEN** `services.axios-chat.bot.systemPromptFile = "/etc/axios/prompt.txt"`
-- **WHEN** the bot processes messages
-- **THEN** it uses the custom system prompt
-
 ### Requirement: Systemd Service Configuration
 
-The system SHALL configure systemd services with appropriate settings.
+The system SHALL configure the systemd service with Gemini environment variables.
 
-#### Scenario: Bot service dependencies
+#### Scenario: Environment variables
 
-- **GIVEN** both prosody and bot are enabled
-- **WHEN** the system starts
-- **THEN** axios-ai-bot.service waits for prosody.service
-- **AND** waits for network-online.target
+- **GIVEN** the bot is configured with `geminiApiKeyFile`
+- **WHEN** the systemd service starts
+- **THEN** `GEMINI_API_KEY_FILE` is set to the configured path
+- **AND** `ANTHROPIC_API_KEY_FILE` is NOT present in the environment
 
-#### Scenario: Service restart
+#### Scenario: Secret file binding
 
-- **GIVEN** the bot service is running
-- **WHEN** the bot process crashes
-- **THEN** systemd restarts it automatically
-- **AND** waits 5 seconds before restart
-
-#### Scenario: Security hardening
-
-- **GIVEN** the bot service is enabled
-- **WHEN** the service runs
-- **THEN** it uses DynamicUser (no static user)
-- **AND** has ProtectSystem=strict
-- **AND** has NoNewPrivileges=true
+- **GIVEN** `geminiApiKeyFile = "/run/agenix/gemini-api-key"`
+- **WHEN** the systemd service is evaluated
+- **THEN** the path is included in `BindReadOnlyPaths`
+- **AND** the service can read the decrypted secret
 
 ### Requirement: Home-Manager Module
 
@@ -217,7 +191,18 @@ The system SHALL integrate cleanly when imported by axios.
 - **GIVEN** axios uses agenix for secrets
 - **WHEN** axios-chat bot is configured with:
   ```nix
-  anthropicKeyFile = config.age.secrets.anthropic.path;
+  geminiApiKeyFile = config.age.secrets.gemini-api-key.path;
   ```
 - **THEN** the bot reads the decrypted secret at runtime
+
+### Requirement: Python Package Dependencies
+
+The system SHALL build the bot with Gemini SDK dependencies.
+
+#### Scenario: Nix build
+
+- **GIVEN** the flake.nix package definition
+- **WHEN** `nix build .#axios-ai-bot` is run
+- **THEN** the build includes `google-generativeai` (or `google-genai`) Python package
+- **AND** does NOT include `anthropic` Python package
 

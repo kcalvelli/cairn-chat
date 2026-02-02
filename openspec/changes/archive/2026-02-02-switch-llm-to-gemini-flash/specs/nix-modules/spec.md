@@ -4,6 +4,19 @@
 
 TBD - created by archiving change bootstrap-axios-chat. Update Purpose after archive.
 
+## ADDED Requirements
+
+### Requirement: Python Package Dependencies
+
+The system SHALL build the bot with Gemini SDK dependencies.
+
+#### Scenario: Nix build
+
+- **GIVEN** the flake.nix package definition
+- **WHEN** `nix build .#axios-ai-bot` is run
+- **THEN** the build includes `google-generativeai` (or `google-genai`) Python package
+- **AND** does NOT include `anthropic` Python package
+
 ## MODIFIED Requirements
 
 ### Requirement: NixOS Bot Module Options
@@ -56,21 +69,22 @@ The system SHALL configure the systemd service with Gemini environment variables
 - **THEN** the path is included in `BindReadOnlyPaths`
 - **AND** the service can read the decrypted secret
 
-### Requirement: Python Package Dependencies
+### Requirement: Integration with axios
 
-The system SHALL build the bot with Gemini SDK dependencies.
+The system SHALL integrate cleanly when imported by axios.
 
-#### Scenario: Nix build
+#### Scenario: Import in axios modules
 
-- **GIVEN** the flake.nix package definition
-- **WHEN** `nix build .#axios-ai-bot` is run
-- **THEN** the build includes `google-generativeai` (or `google-genai`) Python package
-- **AND** does NOT include `anthropic` Python package
+- **GIVEN** axios imports axios-chat as a flake input
+- **WHEN** axios adds `inputs.axios-chat.nixosModules.default` to imports
+- **THEN** the module integrates without conflicts
+- **AND** follows axios naming conventions (services.axios-chat.*)
 
-## REMOVED Requirements
+#### Scenario: Secret management compatibility
 
-### Requirement: Anthropic API key option
-
-~~`services.axios-chat.bot.claudeApiKeyFile`~~
-
-Replaced by `geminiApiKeyFile` above.
+- **GIVEN** axios uses agenix for secrets
+- **WHEN** axios-chat bot is configured with:
+  ```nix
+  geminiApiKeyFile = config.age.secrets.gemini-api-key.path;
+  ```
+- **THEN** the bot reads the decrypted secret at runtime

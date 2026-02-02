@@ -4,7 +4,7 @@
 
 Defines the requirements for the Google Gemini LLM backend used by axios-ai-bot for AI-powered XMPP interactions with dynamic tool execution.
 
-## MODIFIED Requirements
+## ADDED Requirements
 
 ### Requirement: Gemini API Integration
 
@@ -28,6 +28,8 @@ The system SHALL use Google Gemini API for all LLM operations.
 - **GIVEN** the bot is configured with a Gemini API key
 - **WHEN** the bot processes any message
 - **THEN** it uses `gemini-2.0-flash` for all operations (tool execution and simple responses)
+
+## MODIFIED Requirements
 
 ### Requirement: Tool Execution
 

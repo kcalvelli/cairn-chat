@@ -56,14 +56,14 @@ The system SHALL receive and respond to direct messages.
 
 ### Requirement: Dynamic Tool Discovery
 
-The system SHALL discover available tools from mcp-gateway at runtime.
+The system SHALL discover available tools from mcp-gateway at runtime and make all discovered tools available to the LLM.
 
 #### Scenario: Initial tool discovery
 
 - **GIVEN** mcp-gateway is running with registered MCP servers
 - **WHEN** axios-ai-bot starts
 - **THEN** it fetches the tool list from mcp-gateway
-- **AND** categorizes tools by server/domain
+- **AND** all discovered tools are available to Gemini
 
 #### Scenario: Periodic refresh
 
@@ -76,9 +76,11 @@ The system SHALL discover available tools from mcp-gateway at runtime.
 #### Scenario: On-demand refresh
 
 - **GIVEN** the bot is running
+- **AND** a new MCP server was enabled in mcp-gateway
 - **WHEN** a user sends "/refresh"
 - **THEN** the bot refreshes its tool list immediately
 - **AND** confirms the number of available tools
+- **AND** the new server's tools are usable in the next message
 
 #### Scenario: Gateway unavailable
 
@@ -88,48 +90,16 @@ The system SHALL discover available tools from mcp-gateway at runtime.
 - **AND** continues with the previously cached tool list
 - **AND** informs users that some capabilities may be unavailable
 
-### Requirement: Intent Classification
-
-The system SHALL classify user intent before tool selection.
-
-#### Scenario: Email intent
-
-- **GIVEN** a user sends "Send an email to John about lunch"
-- **WHEN** the message is processed
-- **THEN** the router classifies intent as "email"
-- **AND** only email-related tools are sent to Sonnet
-
-#### Scenario: Calendar intent
-
-- **GIVEN** a user sends "What meetings do I have tomorrow?"
-- **WHEN** the message is processed
-- **THEN** the router classifies intent as "calendar"
-- **AND** only calendar-related tools are sent to Sonnet
-
-#### Scenario: Multiple intents
-
-- **GIVEN** a user sends "Check my calendar and email John if I'm free"
-- **WHEN** the message is processed
-- **THEN** the router identifies both "calendar" and "email" intents
-- **AND** tools from both categories are included
-
-#### Scenario: General conversation
-
-- **GIVEN** a user sends "Hello, how are you?"
-- **WHEN** the message is processed
-- **THEN** the router classifies intent as "general"
-- **AND** no tools are sent (pure conversation)
-
 ### Requirement: Tool Execution
 
-The system SHALL execute tools via mcp-gateway.
+The system SHALL execute tools via mcp-gateway using Gemini function calling.
 
 #### Scenario: Successful tool call
 
 - **GIVEN** the LLM requests tool "mcp-dav__list_events"
 - **WHEN** the bot executes the tool
 - **THEN** it calls `POST /api/tools/mcp-dav/list_events` on mcp-gateway
-- **AND** returns the result to the LLM
+- **AND** returns the result to the LLM as a `function_response`
 
 #### Scenario: Tool execution error
 
@@ -166,32 +136,6 @@ The system SHALL maintain conversation context within a session.
 - **THEN** older messages are dropped
 - **OR** summarized to preserve important context
 
-### Requirement: Cost Optimization
-
-The system SHALL minimize API costs through smart routing.
-
-#### Scenario: Haiku for classification
-
-- **GIVEN** a user sends any message
-- **WHEN** intent classification occurs
-- **THEN** Claude Haiku is used (not Sonnet)
-- **AND** minimal context is sent (just the message, not full history)
-
-#### Scenario: Sonnet with filtered tools
-
-- **GIVEN** intent is classified as "calendar"
-- **AND** there are 20 total tools available
-- **WHEN** Sonnet is invoked
-- **THEN** only 3-5 calendar tools are included
-- **AND** token usage is reduced by ~60%
-
-#### Scenario: Local handling of simple queries
-
-- **GIVEN** a user sends "What time is it?"
-- **WHEN** the message is processed
-- **THEN** the bot responds locally (no API call)
-- **OR** uses the minimal Haiku path
-
 ### Requirement: NixOS Module Interface
 
 The system SHALL provide a NixOS module for bot configuration.
@@ -204,7 +148,7 @@ The system SHALL provide a NixOS module for bot configuration.
     enable = true;
     xmppDomain = "chat.home.ts.net";
     xmppPasswordFile = "/run/secrets/bot-password";
-    anthropicKeyFile = "/run/secrets/anthropic-key";
+    geminiApiKeyFile = "/run/secrets/gemini-api-key";
   };
   ```
 - **WHEN** the system is rebuilt
@@ -247,7 +191,7 @@ The system SHALL handle errors gracefully.
 
 #### Scenario: API rate limit
 
-- **GIVEN** the Anthropic API returns a rate limit error
+- **GIVEN** the Gemini API returns a rate limit error
 - **WHEN** the bot receives this error
 - **THEN** it informs the user about temporary unavailability
 - **AND** implements backoff before retrying

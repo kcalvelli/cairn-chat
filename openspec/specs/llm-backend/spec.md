@@ -2,74 +2,36 @@
 
 ## Purpose
 
-Defines the requirements for the Anthropic Claude LLM backend used by axios-ai-bot for AI-powered XMPP interactions with domain routing (Haiku for classification, Sonnet for execution).
-
+Defines the requirements for the Google Gemini LLM backend used by axios-ai-bot for AI-powered XMPP interactions with dynamic tool execution.
 ## Requirements
-
-### Requirement: Claude API Integration
-
-The system SHALL use Anthropic Claude API for all LLM operations.
-
-#### Scenario: Bot startup with API key
-
-- **GIVEN** the bot is configured with `claudeApiKeyFile` pointing to a valid key
-- **WHEN** the bot starts
-- **THEN** it initializes the Anthropic client
-- **AND** connects to the XMPP server
-
-#### Scenario: Missing API key
-
-- **GIVEN** no `claudeApiKeyFile` is configured
-- **WHEN** NixOS evaluates the configuration
-- **THEN** it fails with an assertion error
-
-### Requirement: Domain Routing
-
-The system SHALL use Haiku for intent classification and Sonnet for execution.
-
-#### Scenario: Simple query routing
-
-- **GIVEN** a user sends "What time is it?"
-- **WHEN** the message is processed
-- **THEN** Haiku classifies the intent as "time" domain
-- **AND** only time-related tools are passed to Sonnet
-- **AND** Sonnet executes the appropriate tool
-
-#### Scenario: Multi-domain query
-
-- **GIVEN** a user sends "Email John about our meeting tomorrow"
-- **WHEN** the message is processed
-- **THEN** Haiku classifies as "contacts, email, calendar" domains
-- **AND** tools from all matched domains are passed to Sonnet
-
-#### Scenario: General conversation
-
-- **GIVEN** a user sends "Tell me a joke"
-- **WHEN** Haiku classifies the intent
-- **THEN** it routes to the "general" domain
-- **AND** Sonnet responds without tools
-
 ### Requirement: Tool Execution
 
-The system SHALL execute tools via mcp-gateway using Claude's native tool_use format.
+The system SHALL execute tools via mcp-gateway using Gemini's native function calling format.
 
 #### Scenario: Single tool call
 
 - **GIVEN** a user asks "What's on my calendar tomorrow?"
-- **WHEN** Sonnet processes the message with calendar tools
-- **THEN** it generates a native tool_use block
+- **WHEN** Gemini processes the message with all available tools
+- **THEN** it generates a `function_call` part
 - **AND** the tool is executed via mcp-gateway
-- **AND** the result is fed back to Sonnet
-- **AND** Sonnet returns a natural language summary
+- **AND** the result is sent back as a `function_response` part
+- **AND** Gemini returns a natural language summary
 
 #### Scenario: Multi-step tool operation
 
 - **GIVEN** a user sends "Email John about our meeting tomorrow"
-- **WHEN** Sonnet processes the message
+- **WHEN** Gemini processes the message
 - **THEN** it may call search_contacts to find John's email
 - **AND** may call list_events to find tomorrow's meeting
 - **AND** composes and sends the email
 - **AND** confirms completion to the user
+
+#### Scenario: All tools available
+
+- **GIVEN** mcp-gateway has 25 tools registered across 5 MCP servers
+- **WHEN** a user sends any message
+- **THEN** all 25 tools are sent to Gemini as function declarations
+- **AND** Gemini selects the appropriate tools based on the request
 
 ### Requirement: Anti-Hallucination Measures
 
@@ -111,7 +73,7 @@ The system SHALL maintain conversation context across turns.
 
 ### Requirement: NixOS Module Interface
 
-The system SHALL provide NixOS module options for Claude backend configuration.
+The system SHALL provide NixOS module options for Gemini backend configuration.
 
 #### Scenario: Minimal configuration
 
@@ -121,11 +83,11 @@ The system SHALL provide NixOS module options for Claude backend configuration.
     enable = true;
     xmppDomain = "chat.home.ts.net";
     xmppPasswordFile = "/run/secrets/bot-password";
-    claudeApiKeyFile = "/run/secrets/claude-api-key";
+    geminiApiKeyFile = "/run/secrets/gemini-api-key";
   };
   ```
 - **WHEN** the system is rebuilt
-- **THEN** the bot service starts with Claude backend
+- **THEN** the bot service starts with Gemini backend
 - **AND** connects to the XMPP server
 - **AND** discovers tools from mcp-gateway
 
@@ -135,14 +97,38 @@ The system SHALL handle API errors gracefully.
 
 #### Scenario: API rate limit
 
-- **GIVEN** the Claude API returns a rate limit error
+- **GIVEN** the Gemini API returns a rate limit error
 - **WHEN** the bot processes the error
 - **THEN** it responds with a user-friendly message
 - **AND** logs the error for debugging
 
 #### Scenario: API unavailable
 
-- **GIVEN** the Anthropic API is unreachable
+- **GIVEN** the Gemini API is unreachable
 - **WHEN** the bot attempts to send a request
 - **THEN** it responds with "I'm sorry, the AI service is currently unavailable."
 - **AND** logs the connection error
+
+### Requirement: Gemini API Integration
+
+The system SHALL use Google Gemini API for all LLM operations.
+
+#### Scenario: Bot startup with API key
+
+- **GIVEN** the bot is configured with `geminiApiKeyFile` pointing to a valid key
+- **WHEN** the bot starts
+- **THEN** it initializes the Gemini client with the API key
+- **AND** connects to the XMPP server
+
+#### Scenario: Missing API key
+
+- **GIVEN** no `geminiApiKeyFile` is configured
+- **WHEN** NixOS evaluates the configuration
+- **THEN** it fails with an assertion error
+
+#### Scenario: Model selection
+
+- **GIVEN** the bot is configured with a Gemini API key
+- **WHEN** the bot processes any message
+- **THEN** it uses `gemini-2.0-flash` for all operations (tool execution and simple responses)
+
