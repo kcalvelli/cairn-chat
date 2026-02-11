@@ -1,5 +1,5 @@
 {
-  description = "axios-chat - Family XMPP chat with AI assistant for the axios ecosystem";
+  description = "axios-chat - Family XMPP chat powered by Sid (GenX64)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -50,8 +50,7 @@
 
             dependencies = with pkgs.python3Packages; [
               slixmpp # Async XMPP client
-              google-genai # Gemini API
-              httpx # Async HTTP client
+              httpx # Async HTTP client (for Sid API)
               pydantic # Data validation
             ];
 

@@ -1,8 +1,6 @@
-# NixOS module for axios-ai-bot
+# NixOS module for axios-ai-bot (Sid backend)
 #
-# Provides the systemd service for the AI-powered XMPP bot
-# that connects to mcp-gateway for tool execution.
-# Uses Google Gemini API for AI responses.
+# XMPP chat bot powered by Sid (GenX64) via openclaw-gateway.
 {
   config,
   lib,
@@ -14,17 +12,10 @@ with lib;
 
 let
   cfg = config.services.axios-chat.bot;
-
-  # Serialize user config to JSON for the bot
-  userConfigJson = builtins.toJSON {
-    users = cfg.users;
-    defaultLocation = cfg.defaultLocation;
-    defaultTimezone = cfg.defaultTimezone;
-  };
 in
 {
   options.services.axios-chat.bot = {
-    enable = mkEnableOption "axios-ai-bot XMPP AI assistant";
+    enable = mkEnableOption "axios-ai-bot XMPP chat (Sid backend)";
 
     package = mkOption {
       type = types.package;
@@ -33,13 +24,11 @@ in
       description = "The axios-ai-bot package to use.";
     };
 
+    # XMPP configuration
     xmppUser = mkOption {
       type = types.str;
-      default = "ai";
-      description = ''
-        XMPP username for the bot.
-        The full JID will be <xmppUser>@<xmppDomain>.
-      '';
+      default = "sid";
+      description = "XMPP username for the bot.";
     };
 
     xmppDomain = mkOption {
@@ -51,11 +40,7 @@ in
     xmppServer = mkOption {
       type = types.str;
       default = "127.0.0.1";
-      description = ''
-        XMPP server address to connect to.
-        Defaults to 127.0.0.1 for local Prosody with Tailscale serve.
-        Set to the actual server IP/hostname for remote connections.
-      '';
+      description = "XMPP server address (default: localhost for Prosody).";
     };
 
     xmppPort = mkOption {
@@ -66,107 +51,42 @@ in
 
     xmppPasswordFile = mkOption {
       type = types.path;
-      description = ''
-        Path to file containing the bot's XMPP password.
-        The file should contain only the password with no trailing newline.
-      '';
+      description = "Path to file containing the bot's XMPP password.";
     };
 
-    geminiApiKeyFile = mkOption {
-      type = types.path;
-      description = ''
-        Path to file containing the Google Gemini API key.
-        The file should contain only the API key with no trailing newline.
-      '';
-    };
-
-    # Common options
-    mcpGatewayUrl = mkOption {
+    # Sid (openclaw-gateway) configuration
+    gatewayUrl = mkOption {
       type = types.str;
-      default = "http://localhost:8085";
-      description = "URL of the mcp-gateway instance.";
+      default = "http://127.0.0.1:18789";
+      description = "URL of the openclaw-gateway instance.";
     };
 
-    toolRefreshInterval = mkOption {
-      type = types.int;
-      default = 300;
-      description = "Seconds between automatic tool registry refreshes.";
+    agentId = mkOption {
+      type = types.str;
+      default = "main";
+      description = "OpenClaw agent ID to use.";
     };
 
-    systemPromptFile = mkOption {
+    authTokenFile = mkOption {
       type = types.nullOr types.path;
       default = null;
-      description = ''
-        Path to file containing a custom system prompt for the AI.
-        If null, uses the default prompt.
-      '';
+      description = "Path to file containing the gateway auth token.";
+    };
+
+    timeout = mkOption {
+      type = types.int;
+      default = 300;
+      description = "Request timeout in seconds.";
     };
 
     logLevel = mkOption {
-      type = types.enum [
-        "DEBUG"
-        "INFO"
-        "WARNING"
-        "ERROR"
-      ];
+      type = types.enum [ "DEBUG" "INFO" "WARNING" "ERROR" ];
       default = "INFO";
-      description = "Logging level for the bot.";
-    };
-
-    # Per-user configuration
-    users = mkOption {
-      type = types.attrsOf (
-        types.submodule {
-          options = {
-            location = mkOption {
-              type = types.str;
-              example = "Raleigh, NC";
-              description = "User's location for local search and weather queries.";
-            };
-            timezone = mkOption {
-              type = types.str;
-              default = "America/New_York";
-              example = "America/New_York";
-              description = "User's timezone (IANA format).";
-            };
-          };
-        }
-      );
-      default = { };
-      example = literalExpression ''
-        {
-          "keith@localhost" = {
-            location = "Raleigh, NC";
-            timezone = "America/New_York";
-          };
-        }
-      '';
-      description = ''
-        Per-user configuration for location-aware responses.
-        Keys are JIDs (e.g., "user@domain").
-      '';
-    };
-
-    # Default location for users not in the users config
-    defaultLocation = mkOption {
-      type = types.str;
-      default = "";
-      example = "New York, NY";
-      description = ''
-        Default location for users not specified in the users config.
-        Leave empty to disable location awareness for unknown users.
-      '';
-    };
-
-    defaultTimezone = mkOption {
-      type = types.str;
-      default = "America/New_York";
-      description = "Default timezone for users not specified in the users config.";
+      description = "Logging level.";
     };
   };
 
   config = mkIf cfg.enable {
-    # Assertions
     assertions = [
       {
         assertion = cfg.xmppDomain != "";
@@ -174,38 +94,25 @@ in
       }
     ];
 
-    # Systemd service
     systemd.services.axios-ai-bot = {
-      description = "Axios AI Bot - XMPP AI Assistant";
-      after = [
-        "network-online.target"
-        "prosody.service"
-        "mcp-gateway.service"
-      ];
-      wants = [
-        "network-online.target"
-        "mcp-gateway.service"
-      ];
+      description = "Axios AI Bot (Sid)";
+      after = [ "network-online.target" "prosody.service" "openclaw-gateway.service" ];
+      wants = [ "network-online.target" ];
       wantedBy = [ "multi-user.target" ];
 
-      environment =
-        {
-          XMPP_JID = "${cfg.xmppUser}@${cfg.xmppDomain}";
-          XMPP_SERVER = cfg.xmppServer;
-          XMPP_PORT = toString cfg.xmppPort;
-          XMPP_PASSWORD_FILE = cfg.xmppPasswordFile;
-          GEMINI_API_KEY_FILE = cfg.geminiApiKeyFile;
-          MCP_GATEWAY_URL = cfg.mcpGatewayUrl;
-          TOOL_REFRESH_INTERVAL = toString cfg.toolRefreshInterval;
-          PYTHONUNBUFFERED = "1";
-          LOG_LEVEL = cfg.logLevel;
-        }
-        // optionalAttrs (cfg.systemPromptFile != null) {
-          SYSTEM_PROMPT_FILE = cfg.systemPromptFile;
-        }
-        // optionalAttrs (cfg.users != { } || cfg.defaultLocation != "") {
-          USER_CONFIG = userConfigJson;
-        };
+      environment = {
+        XMPP_JID = "${cfg.xmppUser}@${cfg.xmppDomain}";
+        XMPP_SERVER = cfg.xmppServer;
+        XMPP_PORT = toString cfg.xmppPort;
+        XMPP_PASSWORD_FILE = cfg.xmppPasswordFile;
+        SID_GATEWAY_URL = cfg.gatewayUrl;
+        SID_AGENT_ID = cfg.agentId;
+        SID_TIMEOUT = toString cfg.timeout;
+        PYTHONUNBUFFERED = "1";
+        LOG_LEVEL = cfg.logLevel;
+      } // optionalAttrs (cfg.authTokenFile != null) {
+        SID_AUTH_TOKEN_FILE = cfg.authTokenFile;
+      };
 
       serviceConfig = {
         Type = "simple";
@@ -223,11 +130,7 @@ in
         ProtectKernelTunables = true;
         ProtectKernelModules = true;
         ProtectControlGroups = true;
-        RestrictAddressFamilies = [
-          "AF_INET"
-          "AF_INET6"
-          "AF_UNIX"
-        ];
+        RestrictAddressFamilies = [ "AF_INET" "AF_INET6" "AF_UNIX" ];
         RestrictNamespaces = true;
         LockPersonality = true;
         MemoryDenyWriteExecute = true;
@@ -235,18 +138,13 @@ in
         RestrictSUIDSGID = true;
         RemoveIPC = true;
 
-        # Allow reading secret files and DNS resolution
-        BindReadOnlyPaths =
-          [
-            cfg.xmppPasswordFile
-            cfg.geminiApiKeyFile
-            # DNS resolution (required for Tailscale MagicDNS)
-            "/etc/resolv.conf"
-            "/etc/hosts"
-            "/etc/nsswitch.conf"
-            "/run/systemd/resolve"
-          ]
-          ++ optionals (cfg.systemPromptFile != null) [ cfg.systemPromptFile ];
+        BindReadOnlyPaths = [
+          cfg.xmppPasswordFile
+          "/etc/resolv.conf"
+          "/etc/hosts"
+          "/etc/nsswitch.conf"
+          "/run/systemd/resolve"
+        ] ++ optionals (cfg.authTokenFile != null) [ cfg.authTokenFile ];
       };
     };
   };
