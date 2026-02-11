@@ -69,6 +69,11 @@ def get_config() -> dict[str, Any]:
     config["xmpp_port"] = int(os.environ.get("XMPP_PORT", "5222"))
     config["xmpp_verify_ssl"] = os.environ.get("XMPP_VERIFY_SSL", "false").lower() == "true"
 
+    # MUC configuration
+    muc_rooms = os.environ.get("MUC_ROOMS", "")
+    config["muc_rooms"] = [r.strip() for r in muc_rooms.split(",") if r.strip()]
+    config["muc_nick"] = os.environ.get("MUC_NICK")
+
     return config
 
 
@@ -103,7 +108,12 @@ async def async_main() -> None:
         server=config["xmpp_server"] or None,
         port=config["xmpp_port"],
         verify_ssl=config["xmpp_verify_ssl"],
+        muc_rooms=config["muc_rooms"],
+        muc_nick=config["muc_nick"],
     )
+
+    if config["muc_rooms"]:
+        logger.info(f"Will join MUC rooms: {', '.join(config['muc_rooms'])}")
 
     # Create send_message callback for progress updates
     async def send_progress_message(to_jid: str, message: str) -> None:

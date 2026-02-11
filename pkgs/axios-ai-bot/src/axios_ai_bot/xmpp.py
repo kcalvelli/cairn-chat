@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import ssl
 from collections.abc import Callable, Coroutine
 from typing import Any
@@ -36,6 +37,8 @@ class AxiosBot(slixmpp.ClientXMPP):
         port: int = 5222,
         use_tls: bool = True,
         verify_ssl: bool = False,
+        muc_rooms: list[str] | None = None,
+        muc_nick: str | None = None,
     ):
         """Initialize the XMPP bot.
 
@@ -48,6 +51,8 @@ class AxiosBot(slixmpp.ClientXMPP):
             port: XMPP server port (default 5222)
             use_tls: Whether to use TLS (default True)
             verify_ssl: Whether to verify SSL certificates (default False for self-signed)
+            muc_rooms: List of MUC room JIDs to join (e.g., ["room@conference.example.com"])
+            muc_nick: Nickname to use in MUC rooms (defaults to local part of JID)
         """
         super().__init__(jid, password)
 
@@ -60,6 +65,10 @@ class AxiosBot(slixmpp.ClientXMPP):
         self._server = server
         self._port = port
         self._use_tls = use_tls
+
+        # MUC configuration
+        self._muc_rooms = muc_rooms or []
+        self._muc_nick = muc_nick or jid.split("@")[0]
 
         # Disable direct TLS — Prosody uses STARTTLS on port 5222, not
         # immediate TLS.  Attempting direct TLS first causes a failed
@@ -75,6 +84,7 @@ class AxiosBot(slixmpp.ClientXMPP):
 
         # Register plugins
         self.register_plugin("xep_0030")  # Service Discovery
+        self.register_plugin("xep_0045")  # Multi-User Chat (MUC)
         self.register_plugin("xep_0066")  # Out-of-Band Data (media URLs)
         self.register_plugin("xep_0199")  # XMPP Ping
         self.register_plugin("xep_0085")  # Chat State Notifications
@@ -82,11 +92,12 @@ class AxiosBot(slixmpp.ClientXMPP):
         # Event handlers
         self.add_event_handler("session_start", self._on_session_start)
         self.add_event_handler("message", self._on_message)
+        self.add_event_handler("groupchat_message", self._on_groupchat_message)
         self.add_event_handler("disconnected", self._on_disconnected)
         self.add_event_handler("connection_failed", self._on_connection_failed)
 
     async def _on_session_start(self, event: Any) -> None:
-        """Handle session start - send presence and get roster."""
+        """Handle session start - send presence, get roster, and join MUC rooms."""
         try:
             await self.get_roster()
         except (IqError, IqTimeout) as e:
@@ -95,6 +106,14 @@ class AxiosBot(slixmpp.ClientXMPP):
         self.send_presence(pstatus="Axios AI - Ready to help!")
         self._reconnect_delay = 1.0  # Reset on successful connection
         logger.info(f"XMPP session started as {self.boundjid.bare}")
+
+        # Join MUC rooms
+        for room_jid in self._muc_rooms:
+            try:
+                await self.plugin["xep_0045"].join_muc(room_jid, self._muc_nick)
+                logger.info(f"Joined MUC room: {room_jid} as {self._muc_nick}")
+            except Exception as e:
+                logger.error(f"Failed to join MUC room {room_jid}: {e}")
 
     async def _on_message(self, msg: slixmpp.Message) -> None:
         """Handle incoming messages, including media attachments."""
@@ -185,6 +204,81 @@ class AxiosBot(slixmpp.ClientXMPP):
             msg.send()
         except Exception as e:
             logger.debug(f"Failed to send chat state: {e}")
+
+    def _is_mentioned(self, body: str) -> bool:
+        """Check if the bot is mentioned in a message.
+
+        Matches @sid, @Sid, sid:, Sid:, or just "sid" at word boundaries.
+        """
+        nick = self._muc_nick.lower()
+        patterns = [
+            rf"@{nick}\b",  # @sid
+            rf"\b{nick}:",  # sid:
+            rf"\b{nick}\b",  # just sid as a word
+        ]
+        for pattern in patterns:
+            if re.search(pattern, body.lower()):
+                return True
+        return False
+
+    def _strip_mention(self, body: str) -> str:
+        """Remove the mention from the message body."""
+        nick = self._muc_nick.lower()
+        # Remove @nick or nick: from the beginning
+        result = re.sub(rf"^@?{nick}:?\s*", "", body, flags=re.IGNORECASE)
+        # Remove @nick from elsewhere
+        result = re.sub(rf"@{nick}\b", "", result, flags=re.IGNORECASE)
+        return result.strip()
+
+    async def _on_groupchat_message(self, msg: slixmpp.Message) -> None:
+        """Handle incoming MUC messages."""
+        # Ignore messages from self
+        if msg["mucnick"] == self._muc_nick:
+            return
+
+        # Ignore messages without a body
+        body = msg["body"]
+        if not body:
+            return
+
+        # Only respond if mentioned
+        if not self._is_mentioned(body):
+            return
+
+        room_jid = msg["from"].bare
+        sender_nick = msg["mucnick"]
+
+        # Strip the mention from the message
+        clean_body = self._strip_mention(body)
+        if not clean_body:
+            clean_body = "hello"  # Default if only mention
+
+        logger.info(f"MUC message from {sender_nick} in {room_jid}: {clean_body[:50]}...")
+
+        # Create user message (use sender nick as identifier for context)
+        user_message = UserMessage(text=clean_body)
+
+        # Handle the message
+        if self.message_handler:
+            try:
+                # Use a unique ID for MUC context (room + sender)
+                context_id = f"muc:{room_jid}/{sender_nick}"
+
+                # Process the message
+                response = await self.message_handler(context_id, room_jid, user_message)
+
+                # Send response to the room, addressing the sender
+                if response:
+                    reply = f"{sender_nick}: {response}"
+                    self.send_message(mto=room_jid, mbody=reply, mtype="groupchat")
+
+            except Exception as e:
+                logger.error(f"Error handling MUC message: {e}")
+                self.send_message(
+                    mto=room_jid,
+                    mbody=f"{sender_nick}: Sorry, I encountered an error: {e}",
+                    mtype="groupchat",
+                )
 
     async def _on_disconnected(self, event: Any) -> None:
         """Handle disconnection with exponential backoff reconnect."""

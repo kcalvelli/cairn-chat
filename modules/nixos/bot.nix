@@ -84,6 +84,23 @@ in
       default = "INFO";
       description = "Logging level.";
     };
+
+    # MUC (Multi-User Chat) configuration
+    muc = {
+      rooms = mkOption {
+        type = types.listOf types.str;
+        default = [];
+        example = [ "family@conference.chat.example.ts.net" ];
+        description = "List of MUC room JIDs to join.";
+      };
+
+      nick = mkOption {
+        type = types.nullOr types.str;
+        default = null;
+        example = "Sid";
+        description = "Nickname to use in MUC rooms. Defaults to xmppUser.";
+      };
+    };
   };
 
   config = mkIf cfg.enable {
@@ -112,6 +129,10 @@ in
         LOG_LEVEL = cfg.logLevel;
       } // optionalAttrs (cfg.authTokenFile != null) {
         SID_AUTH_TOKEN_FILE = cfg.authTokenFile;
+      } // optionalAttrs (cfg.muc.rooms != []) {
+        MUC_ROOMS = concatStringsSep "," cfg.muc.rooms;
+      } // optionalAttrs (cfg.muc.nick != null) {
+        MUC_NICK = cfg.muc.nick;
       };
 
       serviceConfig = {
