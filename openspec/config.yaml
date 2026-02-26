@@ -3,76 +3,55 @@ context: |
 
   ## Purpose
 
-  A family-oriented XMPP chat system with an integrated AI assistant, designed for the axios ecosystem. Provides real-time messaging between family members on a private Tailscale network, with an AI bot that can execute actions via mcp-gateway (email, calendar, contacts, and any future MCP servers).
+  Prosody XMPP server for private family chat over Tailscale. Provides the
+  messaging infrastructure for the axios ecosystem. The AI bot (Sid) connects
+  as a native XMPP client from the sid repo — this repo only manages the server.
 
   ## Scope
 
   - Prosody XMPP server configured for Tailscale-only access
-  - AI bot (axios-ai-bot) that appears as an XMPP contact
-  - Dynamic tool discovery from mcp-gateway
+  - MUC (Multi-User Chat) for group conversations
+  - HTTP File Upload (XEP-0363) for images and documents
+  - Message Archive Management (MAM) for history
   - NixOS modules for declarative configuration
   - Standalone Nix flake consumable by axios and other projects
-  - Google Gemini Flash API for AI responses (all tools sent on every request)
-  - Media support: images (JPEG, PNG, GIF, WebP) and documents (PDF) via XEP-0363 HTTP File Upload
-  - Multimodal Claude integration for image/document analysis
 
   ## Non-Goals
 
+  - AI bot implementation (lives in sid repo)
   - Public internet exposure (Tailscale provides network security)
-  - Application-level authentication (Tailscale provides identity)
-  - Web UI / PWA interface (use existing XMPP clients)
   - Federation with external XMPP servers
-  - Model fine-tuning or training
+  - Web UI / PWA interface (use existing XMPP clients)
 
   ## Architecture Principles
 
   1. **Flake-First**: Standalone flake that exports NixOS modules
   2. **Tailscale-Only Security**: Bind to Tailscale interface, no external access
-  3. **Dynamic Tool Discovery**: Query mcp-gateway for available tools at runtime
-  4. **All Tools, Every Request**: Gemini Flash is cheap enough to skip tool filtering
-  5. **Loose Coupling**: Runtime configuration for mcp-gateway URL, not build-time dependency
-  6. **Anti-Hallucination**: Multi-layer validation for tool calls to prevent errors
+  3. **Loose Coupling**: The bot (sid) connects as any XMPP client would
 
   ## Tech Stack
 
   - **XMPP Server**: Prosody (via NixOS services.prosody)
-  - **Bot Framework**: Python with slixmpp (async XMPP library)
-  - **LLM Integration**: Google Gemini API (Flash model for all operations)
-  - **Tool Gateway**: mcp-gateway (runtime dependency via HTTP)
   - **Deployment**: Nix flake with NixOS modules
-  - **Secret Management**: Integration with agenix/sops-nix
+  - **Network**: Tailscale for access control and DNS
 
   ## Project Conventions
 
   ### Code Style
 
-  - **Python**: PEP 8, formatted with Black/Ruff. Type hints required.
   - **Nix**: nixfmt-rfc-style formatting.
-  - **Naming**: snake_case for Python, camelCase for Nix options.
+  - **Naming**: camelCase for Nix options.
 
   ### Module Structure
 
   - NixOS modules in `modules/nixos/`
-  - Python package in `pkgs/axios-ai-bot/`
-  - LLM backend in `pkgs/axios-ai-bot/src/axios_ai_bot/llm/`
-  - Media handling in `pkgs/axios-ai-bot/src/axios_ai_bot/media.py`
-
-  ### Testing Strategy
-
-  - `openspec validate` for architectural changes
-  - pytest for Python bot logic
-  - Integration tests with mock XMPP server
-  - Unit tests for tool parsing and validation
+  - Home-Manager modules in `modules/home-manager/`
 
   ## Related Projects
 
   - [axios](https://github.com/kcalvelli/axios) - NixOS framework that imports this
-  - [mcp-gateway](https://github.com/kcalvelli/mcp-gateway) - Tool aggregation gateway
-  - [axios-ai-mail](https://github.com/kcalvelli/axios-ai-mail) - Email MCP server
-  - [axios-dav](https://github.com/kcalvelli/axios-dav) - Calendar/contacts MCP server
+  - [sid](https://github.com/keithah/sid) - AI bot that connects to this server via XMPP
 
   ## External Dependencies
 
-  - Google Gemini API key (for Gemini access)
-  - mcp-gateway running on the network
   - Tailscale for network access control

@@ -35,7 +35,7 @@ We assume the best intentions in others. When conflicts arise, we seek understan
 
 This project is designed with privacy in mind:
 - All data stays within your Tailscale network
-- AI processing uses Claude API (data goes to Anthropic) but no other third parties
+- AI processing happens via the bot (separate repo) — not in this server
 - No telemetry, analytics, or tracking
 - You control your own infrastructure
 
