@@ -8,11 +8,11 @@ Tasks are ordered by dependency. Tasks within the same group can be parallelized
 
 - [x] **T1: Update Python dependencies**
   - Replace `anthropic>=0.18.0` with `google-genai>=1.0.0` in `pyproject.toml`
-  - Verify: `pip install -e ./pkgs/axios-ai-bot` succeeds
+  - Verify: `pip install -e ./pkgs/cairn-ai-bot` succeeds
 
 - [x] **T2: Update Nix package dependencies**
   - Replace `python3Packages.anthropic` with `python3Packages.google-genai` in `flake.nix`
-  - Verify: `nix build .#axios-ai-bot` succeeds
+  - Verify: `nix build .#cairn-ai-bot` succeeds
 
 - [x] **T3: Update NixOS module options**
   - Rename `claudeApiKeyFile` to `geminiApiKeyFile` in `modules/nixos/bot.nix`
@@ -24,7 +24,7 @@ Tasks are ordered by dependency. Tasks within the same group can be parallelized
 ### Group 2: Core LLM Backend (depends on T1)
 
 - [x] **T4: Implement GeminiClient**
-  - Create `pkgs/axios-ai-bot/src/axios_ai_bot/llm/gemini.py` implementing `LLMBackend`
+  - Create `pkgs/cairn-ai-bot/src/cairn_ai_bot/llm/gemini.py` implementing `LLMBackend`
   - Implement `__init__` with `google.genai.Client` initialization
   - Implement `execute_with_tools` with Gemini function calling loop
   - Implement `simple_response` for tool-free conversations
@@ -94,6 +94,6 @@ Tasks are ordered by dependency. Tasks within the same group can be parallelized
 ### Group 6: Integration Testing
 
 - [x] **T13: End-to-end verification**
-  - Build with `nix build .#axios-ai-bot` -- passes
+  - Build with `nix build .#cairn-ai-bot` -- passes
   - Smoke test: bot starts, imports Gemini SDK, fails correctly on missing XMPP_JID
   - Remaining manual tests (deploy with real key, tool calls, media, etc.) deferred to deployment

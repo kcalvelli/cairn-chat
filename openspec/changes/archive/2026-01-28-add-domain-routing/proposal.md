@@ -88,7 +88,7 @@ DOMAIN_REGISTRY = {
         "prompt_hint": "You are a calendar assistant. Use calendar tools to manage events."
     },
     "email": {
-        "servers": ["axios-ai-mail"],
+        "servers": ["cairn-ai-mail"],
         "tools": ["list_accounts", "search_emails", "read_email",
                   "compose_email", "send_email", "reply_to_email", "mark_read", "delete_email"],
         "prompt_hint": "You are an email assistant. Use email tools to manage messages."

@@ -8,7 +8,7 @@ This document details the technical design for domain-aware routing, enabling ef
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        axios-ai-bot                              │
+│                        cairn-ai-bot                              │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐       │
@@ -31,7 +31,7 @@ This document details the technical design for domain-aware routing, enabling ef
                       ┌──────────────┐
                       │  mcp-gateway │
                       │              │
-                      │ axios-ai-mail│
+                      │ cairn-ai-mail│
                       │ mcp-dav      │
                       │ time         │
                       └──────────────┘
@@ -116,16 +116,16 @@ DEFAULT_DOMAINS = {
     "email": DomainConfig(
         name="email",
         description="Reading, searching, composing, or sending emails",
-        servers=["axios-ai-mail"],
+        servers=["cairn-ai-mail"],
         tools=[
-            "axios-ai-mail__list_accounts",
-            "axios-ai-mail__search_emails",
-            "axios-ai-mail__read_email",
-            "axios-ai-mail__compose_email",
-            "axios-ai-mail__send_email",
-            "axios-ai-mail__reply_to_email",
-            "axios-ai-mail__mark_read",
-            "axios-ai-mail__delete_email",
+            "cairn-ai-mail__list_accounts",
+            "cairn-ai-mail__search_emails",
+            "cairn-ai-mail__read_email",
+            "cairn-ai-mail__compose_email",
+            "cairn-ai-mail__send_email",
+            "cairn-ai-mail__reply_to_email",
+            "cairn-ai-mail__mark_read",
+            "cairn-ai-mail__delete_email",
         ],
         prompt_hint="You are an email assistant. Use email tools to search, read, and send messages.",
         priority=3,
@@ -314,7 +314,7 @@ async def execute_with_routing(
 ### NixOS Module Options
 
 ```nix
-services.axios-chat.bot = {
+services.cairn-chat.bot = {
   # ... existing options ...
 
   enableDomainRouting = lib.mkEnableOption "domain-aware routing" // {

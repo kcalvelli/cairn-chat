@@ -1,5 +1,5 @@
 {
-  description = "axios-chat - Family XMPP server (Prosody on Tailscale)";
+  description = "cairn-chat - Family XMPP server (Prosody on Tailscale)";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -39,7 +39,7 @@
 
             shellHook = ''
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-              echo "  axios-chat development environment"
+              echo "  cairn-chat development environment"
               echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
               echo ""
               echo "Commands:"

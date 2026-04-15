@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines the requirements for the Google Gemini LLM backend used by axios-ai-bot for AI-powered XMPP interactions with dynamic tool execution.
+Defines the requirements for the Google Gemini LLM backend used by cairn-ai-bot for AI-powered XMPP interactions with dynamic tool execution.
 
 ## ADDED Requirements
 
@@ -106,7 +106,7 @@ The system SHALL provide NixOS module options for Gemini backend configuration.
 
 - **GIVEN** a NixOS configuration with:
   ```nix
-  services.axios-chat.bot = {
+  services.cairn-chat.bot = {
     enable = true;
     xmppDomain = "chat.home.ts.net";
     xmppPasswordFile = "/run/secrets/bot-password";

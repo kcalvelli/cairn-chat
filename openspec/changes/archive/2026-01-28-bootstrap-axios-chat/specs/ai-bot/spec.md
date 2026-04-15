@@ -12,7 +12,7 @@ The system SHALL connect to the Prosody server as an XMPP client.
 
 #### Scenario: Bot connects on startup
 
-- **GIVEN** axios-ai-bot is configured with valid XMPP credentials
+- **GIVEN** cairn-ai-bot is configured with valid XMPP credentials
 - **WHEN** the service starts
 - **THEN** it connects to the Prosody server
 - **AND** sets presence to "available"
@@ -21,7 +21,7 @@ The system SHALL connect to the Prosody server as an XMPP client.
 #### Scenario: Connection failure
 
 - **GIVEN** Prosody is not running
-- **WHEN** axios-ai-bot attempts to connect
+- **WHEN** cairn-ai-bot attempts to connect
 - **THEN** it logs an error
 - **AND** retries with exponential backoff
 
@@ -64,7 +64,7 @@ The system SHALL discover available tools from mcp-gateway at runtime.
 #### Scenario: Initial tool discovery
 
 - **GIVEN** mcp-gateway is running with registered MCP servers
-- **WHEN** axios-ai-bot starts
+- **WHEN** cairn-ai-bot starts
 - **THEN** it fetches the tool list from mcp-gateway
 - **AND** categorizes tools by server/domain
 
@@ -203,7 +203,7 @@ The system SHALL provide a NixOS module for bot configuration.
 
 - **GIVEN** a NixOS configuration with:
   ```nix
-  services.axios-chat.bot = {
+  services.cairn-chat.bot = {
     enable = true;
     xmppDomain = "chat.home.ts.net";
     xmppPasswordFile = "/run/secrets/bot-password";
@@ -217,13 +217,13 @@ The system SHALL provide a NixOS module for bot configuration.
 
 #### Scenario: Custom mcp-gateway URL
 
-- **GIVEN** `services.axios-chat.bot.mcpGatewayUrl = "http://192.168.1.10:8085"`
+- **GIVEN** `services.cairn-chat.bot.mcpGatewayUrl = "http://192.168.1.10:8085"`
 - **WHEN** the bot fetches tools
 - **THEN** it connects to the specified URL
 
 #### Scenario: Custom bot username
 
-- **GIVEN** `services.axios-chat.bot.xmppUser = "assistant"`
+- **GIVEN** `services.cairn-chat.bot.xmppUser = "assistant"`
 - **WHEN** the bot connects
 - **THEN** it uses JID "assistant@chat.home.ts.net"
 
@@ -235,11 +235,11 @@ The system SHALL support customizable system prompts.
 
 - **GIVEN** no custom system prompt is configured
 - **WHEN** the bot processes messages
-- **THEN** it uses the default "Axios AI Assistant" persona
+- **THEN** it uses the default "Cairn AI Assistant" persona
 
 #### Scenario: Custom persona
 
-- **GIVEN** `services.axios-chat.bot.systemPromptFile = "/etc/axios-chat/prompt.txt"`
+- **GIVEN** `services.cairn-chat.bot.systemPromptFile = "/etc/cairn-chat/prompt.txt"`
 - **AND** the file contains a custom persona
 - **WHEN** the bot processes messages
 - **THEN** it uses the custom system prompt

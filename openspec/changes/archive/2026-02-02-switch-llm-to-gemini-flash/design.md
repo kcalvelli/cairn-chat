@@ -112,8 +112,8 @@ Replace `python3Packages.anthropic` with `python3Packages.google-generativeai` (
 Any NixOS configuration importing this module must update:
 ```nix
 # Before
-services.axios-chat.bot.claudeApiKeyFile = config.age.secrets.anthropic.path;
+services.cairn-chat.bot.claudeApiKeyFile = config.age.secrets.anthropic.path;
 
 # After
-services.axios-chat.bot.geminiApiKeyFile = config.age.secrets.gemini-api-key.path;
+services.cairn-chat.bot.geminiApiKeyFile = config.age.secrets.gemini-api-key.path;
 ```

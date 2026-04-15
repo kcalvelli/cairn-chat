@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change bootstrap-axios-chat. Update Purpose after archive.
+TBD - created by archiving change bootstrap-cairn-chat. Update Purpose after archive.
 
 ## ADDED Requirements
 
@@ -13,7 +13,7 @@ The system SHALL build the bot with Gemini SDK dependencies.
 #### Scenario: Nix build
 
 - **GIVEN** the flake.nix package definition
-- **WHEN** `nix build .#axios-ai-bot` is run
+- **WHEN** `nix build .#cairn-ai-bot` is run
 - **THEN** the build includes `google-generativeai` (or `google-genai`) Python package
 - **AND** does NOT include `anthropic` Python package
 
@@ -25,23 +25,23 @@ The system SHALL provide the following bot configuration options.
 
 #### Scenario: Gemini API key
 
-- **GIVEN** `services.axios-chat.bot.geminiApiKeyFile = "/run/secrets/gemini-api-key"`
+- **GIVEN** `services.cairn-chat.bot.geminiApiKeyFile = "/run/secrets/gemini-api-key"`
 - **WHEN** the bot starts
 - **THEN** it reads the API key from the file
 - **AND** uses it for Gemini API calls
 
 #### Scenario: Enable option
 
-- **GIVEN** `services.axios-chat.bot.enable = true`
+- **GIVEN** `services.cairn-chat.bot.enable = true`
 - **WHEN** the system is rebuilt
-- **THEN** the axios-ai-bot systemd service is created
+- **THEN** the cairn-ai-bot systemd service is created
 - **AND** it starts after prosody.service
 
 #### Scenario: XMPP credentials
 
 - **GIVEN**:
   ```nix
-  services.axios-chat.bot = {
+  services.cairn-chat.bot = {
     xmppUser = "ai";
     xmppDomain = "chat.ts.net";
     xmppPasswordFile = "/run/secrets/bot-pw";
@@ -69,21 +69,21 @@ The system SHALL configure the systemd service with Gemini environment variables
 - **THEN** the path is included in `BindReadOnlyPaths`
 - **AND** the service can read the decrypted secret
 
-### Requirement: Integration with axios
+### Requirement: Integration with cairn
 
-The system SHALL integrate cleanly when imported by axios.
+The system SHALL integrate cleanly when imported by cairn.
 
-#### Scenario: Import in axios modules
+#### Scenario: Import in cairn modules
 
-- **GIVEN** axios imports axios-chat as a flake input
-- **WHEN** axios adds `inputs.axios-chat.nixosModules.default` to imports
+- **GIVEN** cairn imports cairn-chat as a flake input
+- **WHEN** cairn adds `inputs.cairn-chat.nixosModules.default` to imports
 - **THEN** the module integrates without conflicts
-- **AND** follows axios naming conventions (services.axios-chat.*)
+- **AND** follows cairn naming conventions (services.cairn-chat.*)
 
 #### Scenario: Secret management compatibility
 
-- **GIVEN** axios uses agenix for secrets
-- **WHEN** axios-chat bot is configured with:
+- **GIVEN** cairn uses agenix for secrets
+- **WHEN** cairn-chat bot is configured with:
   ```nix
   geminiApiKeyFile = config.age.secrets.gemini-api-key.path;
   ```

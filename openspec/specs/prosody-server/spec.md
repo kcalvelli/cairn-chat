@@ -1,7 +1,7 @@
 # prosody-server Specification
 
 ## Purpose
-TBD - created by archiving change bootstrap-axios-chat. Update Purpose after archive.
+TBD - created by archiving change bootstrap-cairn-chat. Update Purpose after archive.
 ## Requirements
 ### Requirement: Tailscale-Only Binding
 
@@ -9,7 +9,7 @@ The system SHALL bind Prosody exclusively to the Tailscale network interface.
 
 #### Scenario: Server binds to Tailscale IP
 
-- **GIVEN** axios-chat prosody is enabled
+- **GIVEN** cairn-chat prosody is enabled
 - **AND** the machine has a Tailscale IP (e.g., 100.x.x.x)
 - **WHEN** Prosody starts
 - **THEN** it listens only on the Tailscale IP
@@ -17,7 +17,7 @@ The system SHALL bind Prosody exclusively to the Tailscale network interface.
 
 #### Scenario: Tailscale not running
 
-- **GIVEN** axios-chat prosody is enabled
+- **GIVEN** cairn-chat prosody is enabled
 - **AND** Tailscale is not running
 - **WHEN** Prosody attempts to start
 - **THEN** the service fails with a clear error message
@@ -29,7 +29,7 @@ The system SHALL disable XMPP server-to-server (s2s) federation.
 
 #### Scenario: No external federation
 
-- **GIVEN** axios-chat prosody is running
+- **GIVEN** cairn-chat prosody is running
 - **WHEN** an external XMPP server attempts to connect
 - **THEN** the connection is refused
 - **AND** no error is logged (silent rejection)
@@ -40,14 +40,14 @@ The system SHALL configure a virtual host for the chat domain.
 
 #### Scenario: Domain configuration
 
-- **GIVEN** `services.axios-chat.prosody.domain = "chat.home.ts.net"`
+- **GIVEN** `services.cairn-chat.prosody.domain = "chat.home.ts.net"`
 - **WHEN** Prosody starts
 - **THEN** it accepts connections for `chat.home.ts.net`
 - **AND** users can register as `user@chat.home.ts.net`
 
 #### Scenario: Admin users
 
-- **GIVEN** `services.axios-chat.prosody.admins = ["keith@chat.home.ts.net"]`
+- **GIVEN** `services.cairn-chat.prosody.admins = ["keith@chat.home.ts.net"]`
 - **WHEN** keith logs in
 - **THEN** keith has administrative privileges
 - **AND** can manage other users
@@ -76,7 +76,7 @@ The system SHALL require encryption for client connections.
 
 #### Scenario: TLS required
 
-- **GIVEN** axios-chat prosody is running
+- **GIVEN** cairn-chat prosody is running
 - **WHEN** a client attempts an unencrypted connection
 - **THEN** the connection is upgraded to TLS
 - **OR** rejected if TLS is not possible
@@ -107,7 +107,7 @@ The system SHALL provide a NixOS module with the following options.
 
 - **GIVEN** a NixOS configuration with:
   ```nix
-  services.axios-chat.prosody = {
+  services.cairn-chat.prosody = {
     enable = true;
     domain = "chat.home.ts.net";
   };
@@ -118,13 +118,13 @@ The system SHALL provide a NixOS module with the following options.
 
 #### Scenario: Custom Tailscale IP
 
-- **GIVEN** `services.axios-chat.prosody.tailscaleIP = "100.64.1.1"`
+- **GIVEN** `services.cairn-chat.prosody.tailscaleIP = "100.64.1.1"`
 - **WHEN** Prosody starts
 - **THEN** it binds to 100.64.1.1 specifically
 
 #### Scenario: Disable MUC
 
-- **GIVEN** `services.axios-chat.prosody.muc.enable = false`
+- **GIVEN** `services.cairn-chat.prosody.muc.enable = false`
 - **WHEN** Prosody starts
 - **THEN** MUC functionality is not available
 

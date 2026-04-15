@@ -201,7 +201,7 @@ The system SHALL provide NixOS module options for Ollama backend configuration.
 
 - **GIVEN** a NixOS configuration with:
   ```nix
-  services.axios-chat.bot = {
+  services.cairn-chat.bot = {
     enable = true;
     llmBackend = "ollama";
     ollamaUrl = "http://localhost:11434";

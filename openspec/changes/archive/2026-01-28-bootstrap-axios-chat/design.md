@@ -1,8 +1,8 @@
-# Design: axios-chat Architecture
+# Design: cairn-chat Architecture
 
 ## Context
 
-The axios ecosystem has several MCP-enabled services (axios-ai-mail, axios-dav) aggregated via mcp-gateway. Users currently interact with these via Claude Code or the mcp-gateway Web UI. There's a need for a more natural, always-available interface that:
+The cairn ecosystem has several MCP-enabled services (cairn-ai-mail, cairn-dav) aggregated via mcp-gateway. Users currently interact with these via Claude Code or the mcp-gateway Web UI. There's a need for a more natural, always-available interface that:
 
 1. Provides family messaging (human-to-human)
 2. Offers AI assistance via natural conversation
@@ -10,7 +10,7 @@ The axios ecosystem has several MCP-enabled services (axios-ai-mail, axios-dav) 
 4. Stays entirely within the Tailscale network
 
 **Constraints:**
-- Must be a standalone flake (no circular deps with axios)
+- Must be a standalone flake (no circular deps with cairn)
 - Tailscale-only access (no application-level auth)
 - Use existing XMPP clients (no custom app development)
 - Claude API for reliable tool calling (local LLMs failed in testing)
@@ -32,7 +32,7 @@ The axios ecosystem has several MCP-enabled services (axios-ai-mail, axios-dav) 
 ## Flake Structure
 
 ```
-axios-chat/
+cairn-chat/
 ├── flake.nix                      # Main flake definition
 ├── flake.lock
 │
@@ -40,16 +40,16 @@ axios-chat/
 │   ├── nixos/
 │   │   ├── default.nix            # Imports prosody + bot
 │   │   ├── prosody.nix            # Tailnet-only Prosody config
-│   │   └── bot.nix                # axios-ai-bot systemd service
+│   │   └── bot.nix                # cairn-ai-bot systemd service
 │   │
 │   └── home-manager/
 │       └── default.nix            # User preferences
 │
 ├── pkgs/
-│   └── axios-ai-bot/
+│   └── cairn-ai-bot/
 │       ├── pyproject.toml
 │       └── src/
-│           └── axios_ai_bot/
+│           └── cairn_ai_bot/
 │               ├── __init__.py
 │               ├── main.py        # Entry point
 │               ├── xmpp.py        # slixmpp client
@@ -191,7 +191,7 @@ services.prosody = {
   enable = true;
 
   # Bind only to Tailscale interface
-  interfaces = [ config.services.axios-chat.prosody.tailscaleIP ];
+  interfaces = [ config.services.cairn-chat.prosody.tailscaleIP ];
 
   # Disable federation
   modules_disabled = [ "s2s" ];
@@ -205,13 +205,13 @@ The `tailscaleIP` is derived from the machine's Tailscale status or configured e
 
 ### Decision 6: Secret Management Pattern
 
-Follow axios ecosystem patterns using file-based secrets:
+Follow cairn ecosystem patterns using file-based secrets:
 
 ```nix
-services.axios-chat.bot = {
+services.cairn-chat.bot = {
   enable = true;
   anthropicKeyFile = config.age.secrets.anthropic-api-key.path;
-  xmppPasswordFile = config.age.secrets.axios-ai-bot-password.path;
+  xmppPasswordFile = config.age.secrets.cairn-ai-bot-password.path;
 };
 ```
 
@@ -226,7 +226,7 @@ def load_secret(path: str) -> str:
 ## Message Flow
 
 ```
-User (Conversations app)                axios-ai-bot                     Claude API                    mcp-gateway
+User (Conversations app)                cairn-ai-bot                     Claude API                    mcp-gateway
          │                                    │                              │                              │
          │  "What's on my calendar           │                              │                              │
          │   tomorrow?"                       │                              │                              │
@@ -268,10 +268,10 @@ User (Conversations app)                axios-ai-bot                     Claude 
 
 ## Configuration Examples
 
-### Minimal NixOS Configuration (in axios consumer)
+### Minimal NixOS Configuration (in cairn consumer)
 
 ```nix
-services.axios-chat = {
+services.cairn-chat = {
   prosody = {
     enable = true;
     domain = "chat.home.ts.net";

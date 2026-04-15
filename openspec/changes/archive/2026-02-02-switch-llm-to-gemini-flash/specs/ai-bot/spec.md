@@ -2,7 +2,7 @@
 
 ## Purpose
 
-TBD - created by archiving change bootstrap-axios-chat. Update Purpose after archive.
+TBD - created by archiving change bootstrap-cairn-chat. Update Purpose after archive.
 
 ## MODIFIED Requirements
 
@@ -40,7 +40,7 @@ The system SHALL discover available tools from mcp-gateway at runtime and make a
 #### Scenario: Initial tool discovery
 
 - **GIVEN** mcp-gateway is running with registered MCP servers
-- **WHEN** axios-ai-bot starts
+- **WHEN** cairn-ai-bot starts
 - **THEN** it fetches the tool list from mcp-gateway
 - **AND** all discovered tools are available to Gemini
 

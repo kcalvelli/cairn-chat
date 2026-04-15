@@ -1,6 +1,6 @@
-# Home-Manager module for axios-chat user preferences
+# Home-Manager module for cairn-chat user preferences
 #
-# This module provides user-level configuration for axios-chat,
+# This module provides user-level configuration for cairn-chat,
 # such as default XMPP account and future client configuration.
 {
   config,
@@ -12,11 +12,11 @@
 with lib;
 
 let
-  cfg = config.programs.axios-chat;
+  cfg = config.programs.cairn-chat;
 in
 {
-  options.programs.axios-chat = {
-    enable = mkEnableOption "axios-chat user configuration";
+  options.programs.cairn-chat = {
+    enable = mkEnableOption "cairn-chat user configuration";
 
     defaultAccount = mkOption {
       type = types.nullOr types.str;
@@ -43,7 +43,7 @@ in
     # - Configure keyboard shortcuts for XMPP clients
 
     home.sessionVariables = mkIf (cfg.defaultAccount != null) {
-      AXIOS_CHAT_ACCOUNT = cfg.defaultAccount;
+      CAIRN_CHAT_ACCOUNT = cfg.defaultAccount;
     };
   };
 }

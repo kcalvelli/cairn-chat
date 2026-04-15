@@ -15,7 +15,7 @@
 with lib;
 
 let
-  cfg = config.services.axios-chat.prosody;
+  cfg = config.services.cairn-chat.prosody;
   useTailscaleServe = cfg.tailscaleServe.enable;
 
   # Machine's Tailscale FQDN (e.g., "edge.taile0fb4.ts.net").
@@ -25,8 +25,8 @@ let
   machineFqdn = "${config.networking.hostName}.${tailnetDomain}";
 in
 {
-  options.services.axios-chat.prosody = {
-    enable = mkEnableOption "Prosody XMPP server for axios-chat (Tailscale-only)";
+  options.services.cairn-chat.prosody = {
+    enable = mkEnableOption "Prosody XMPP server for cairn-chat (Tailscale-only)";
 
     domain = mkOption {
       type = types.str;
@@ -129,12 +129,12 @@ in
     assertions = [
       {
         assertion = cfg.domain != "";
-        message = "services.axios-chat.prosody.domain must be set";
+        message = "services.cairn-chat.prosody.domain must be set";
       }
       {
         assertion = useTailscaleServe || cfg.tailscaleIP != null;
         message = ''
-          services.axios-chat.prosody requires either:
+          services.cairn-chat.prosody requires either:
           - tailscaleServe.enable = true (recommended), OR
           - tailscaleIP to be set (legacy mode)
 

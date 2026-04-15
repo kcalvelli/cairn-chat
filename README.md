@@ -1,4 +1,4 @@
-# axios-chat
+# cairn-chat
 
 Prosody XMPP server for private family chat, accessible only within your Tailscale network.
 
@@ -39,14 +39,14 @@ Sid (the AI assistant) connects as a native XMPP client from the [sid](https://g
 {
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    axios-chat.url = "github:kcalvelli/axios-chat";
+    cairn-chat.url = "github:kcalvelli/cairn-chat";
   };
 
-  outputs = { self, nixpkgs, axios-chat, ... }: {
+  outputs = { self, nixpkgs, cairn-chat, ... }: {
     nixosConfigurations.myhost = nixpkgs.lib.nixosSystem {
       system = "x86_64-linux";
       modules = [
-        axios-chat.nixosModules.default
+        cairn-chat.nixosModules.default
         ./configuration.nix
       ];
     };
@@ -60,7 +60,7 @@ Sid (the AI assistant) connects as a native XMPP client from the [sid](https://g
 { config, ... }:
 
 {
-  services.axios-chat.prosody = {
+  services.cairn-chat.prosody = {
     enable = true;
     domain = "chat.home.ts.net";
     tailscaleServe.enable = true;
@@ -115,7 +115,7 @@ sudo prosodyctl adduser sid@chat.home.ts.net
 
 ## Related Projects
 
-- [axios](https://github.com/kcalvelli/axios) - NixOS framework
+- [cairn](https://github.com/kcalvelli/cairn) - NixOS framework
 - [sid](https://github.com/keithah/sid) - AI bot (connects to this server as a native XMPP client)
 
 ## License

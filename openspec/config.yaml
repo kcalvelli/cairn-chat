@@ -1,10 +1,10 @@
 context: |
-  # Project: axios-chat
+  # Project: cairn-chat
 
   ## Purpose
 
   Prosody XMPP server for private family chat over Tailscale. Provides the
-  messaging infrastructure for the axios ecosystem. The AI bot (Sid) connects
+  messaging infrastructure for the cairn ecosystem. The AI bot (Sid) connects
   as a native XMPP client from the sid repo — this repo only manages the server.
 
   ## Scope
@@ -14,7 +14,7 @@ context: |
   - HTTP File Upload (XEP-0363) for images and documents
   - Message Archive Management (MAM) for history
   - NixOS modules for declarative configuration
-  - Standalone Nix flake consumable by axios and other projects
+  - Standalone Nix flake consumable by cairn and other projects
 
   ## Non-Goals
 
@@ -49,7 +49,7 @@ context: |
 
   ## Related Projects
 
-  - [axios](https://github.com/kcalvelli/axios) - NixOS framework that imports this
+  - [cairn](https://github.com/kcalvelli/cairn) - NixOS framework that imports this
   - [sid](https://github.com/keithah/sid) - AI bot that connects to this server via XMPP
 
   ## External Dependencies

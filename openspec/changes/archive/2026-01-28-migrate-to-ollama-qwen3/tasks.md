@@ -3,7 +3,7 @@
 ## Phase 1: Infrastructure Setup
 
 - [x] **1.1 Create LLM package structure**
-  - Create `pkgs/axios-ai-bot/src/axios_ai_bot/llm/` directory
+  - Create `pkgs/cairn-ai-bot/src/cairn_ai_bot/llm/` directory
   - Move existing `llm.py` content to `llm/anthropic.py`
   - Create `llm/__init__.py` with exports
   - Update imports in `router.py` and `main.py`

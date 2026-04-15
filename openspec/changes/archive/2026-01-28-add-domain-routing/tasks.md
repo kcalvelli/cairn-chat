@@ -6,12 +6,12 @@
   - Add `brave-search` to default autoEnable list in mcp-gateway NixOS module
   - Ensure brave-search MCP server is available
   - Verify: `brave-search` tools appear in mcp-gateway /api/tools
-  - Note: This is in the axios repo, not axios-ai-chat
+  - Note: This is in the cairn repo, not cairn-ai-chat
 
 ## Phase 1: Domain Registry
 
 - [x] **1.1 Create domain registry module**
-  - Create `axios_ai_bot/domains.py`
+  - Create `cairn_ai_bot/domains.py`
   - Define `DomainConfig` dataclass with servers, tools, prompt_hint
   - Define `DOMAIN_REGISTRY` with initial domains (contacts, calendar, email, time, search, general)
   - Add `get_domain_tools()` function

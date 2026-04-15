@@ -1,14 +1,14 @@
-# Change: Bootstrap axios-chat
+# Change: Bootstrap cairn-chat
 
 ## Why
 
-The axios ecosystem needs a unified communication platform that combines family messaging with AI-powered automation. Current options (OpenWebUI, standalone chat apps) don't provide reliable tool calling or integrate well with the existing MCP infrastructure.
+The cairn ecosystem needs a unified communication platform that combines family messaging with AI-powered automation. Current options (OpenWebUI, standalone chat apps) don't provide reliable tool calling or integrate well with the existing MCP infrastructure.
 
-axios-chat provides:
+cairn-chat provides:
 - A private family instant messenger (like AIM, but Tailscale-only)
 - An AI assistant that can actually "do stuff" via mcp-gateway
 - Native XMPP clients on all platforms (no custom app development)
-- Seamless integration with axios-ai-mail, axios-dav, and future MCP servers
+- Seamless integration with cairn-ai-mail, cairn-dav, and future MCP servers
 
 ## What Changes
 
@@ -16,7 +16,7 @@ This is a greenfield project that creates:
 
 ### 1. Project Infrastructure
 - Nix flake with NixOS and home-manager module exports
-- Python package for axios-ai-bot
+- Python package for cairn-ai-bot
 - OpenSpec structure for spec-driven development
 
 ### 2. Prosody XMPP Server Module
@@ -25,7 +25,7 @@ This is a greenfield project that creates:
 - MUC (Multi-User Chat) support for group chats
 - Tailscale interface binding
 
-### 3. axios-ai-bot
+### 3. cairn-ai-bot
 - Python package using slixmpp for XMPP
 - Claude API integration (Haiku for routing, Sonnet for execution)
 - Dynamic tool discovery from mcp-gateway
@@ -46,7 +46,7 @@ This is a greenfield project that creates:
 - **Dependencies**:
   - Runtime: mcp-gateway, Anthropic API
   - Build: nixpkgs, slixmpp, anthropic, httpx
-- **Integration**: axios imports as flake input
+- **Integration**: cairn imports as flake input
 
 ## Architecture Overview
 
@@ -62,13 +62,13 @@ This is a greenfield project that creates:
 │                                 ▼                                       │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
 │  │                    Prosody XMPP Server                            │  │
-│  │               (services.axios-chat.prosody)                       │  │
+│  │               (services.cairn-chat.prosody)                       │  │
 │  └──────────────────────────────┬───────────────────────────────────┘  │
 │                                 │                                       │
 │                                 ▼                                       │
 │  ┌──────────────────────────────────────────────────────────────────┐  │
-│  │                     axios-ai-bot                                  │  │
-│  │               (services.axios-chat.bot)                           │  │
+│  │                     cairn-ai-bot                                  │  │
+│  │               (services.cairn-chat.bot)                           │  │
 │  │                                                                   │  │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐   │  │
 │  │  │ XMPP Client │  │ Tool Router │  │ Dynamic Tool Registry   │   │  │
@@ -92,7 +92,7 @@ This is a greenfield project that creates:
 │           ┌─────────────────┼─────────────────┐                       │
 │           ▼                 ▼                 ▼                       │
 │  ┌─────────────┐   ┌─────────────┐   ┌─────────────┐                 │
-│  │axios-ai-mail│   │  mcp-dav    │   │  Future MCP │                 │
+│  │cairn-ai-mail│   │  mcp-dav    │   │  Future MCP │                 │
 │  │  (email)    │   │ (cal/cont)  │   │  servers    │                 │
 │  └─────────────┘   └─────────────┘   └─────────────┘                 │
 │                                                                       │
